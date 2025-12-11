@@ -1,71 +1,86 @@
 
 #1. Data cleaning processes
-"""
-
 import pandas as pd
+import sys
+import os
+import pytz
+import streamlit as st
+
+# -----------------------------------------------------------
+# 📌 TITLE
+# -----------------------------------------------------------
+st.title("📊 Data Inspection & Cleaning Dashboard")
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 📌 LOAD DATA
+# -----------------------------------------------------------
+st.markdown("## 📥 Load Dataset")
 df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx")
+st.markdown("### 🔍 First Look at DataFrame")
+st.dataframe(df.head())
 
+st.markdown("### 📐 Data Shape")
+st.write(df.shape)
 
-# # Try UTF-8 first
-# try:
-#     df = pd.read_csv(r"/content/Untitled spreadsheet(S-1-03-11 Household Question...csv", encoding='utf-8')
-# except UnicodeDecodeError:
-#     # If UTF-8 fails, try Latin-1 encoding
-#     df = pd.read_csv(r"/content/Untitled spreadsheet(S-1-03-11 Household Question...csv", encoding='latin1')
+st.markdown("---")
 
-# Display first few rows
-pd.set_option('display.max_columns', None)
-df.head()
+# -----------------------------------------------------------
+# 📌 FIND EMPTY COLUMNS
+# -----------------------------------------------------------
+st.markdown("## 🧹 Find Columns with *No Data at All*")
 
-df.shape
-
-"""##**Find columns that have no data at all**"""
-
-# Find columns where ALL values are missing in filtered_df
+# Find columns where ALL values are missing
 empty_cols = df.columns[df.isna().all()].tolist()
 empty_cols1 = df.columns[df.isna().all()].tolist()
 
-# Put them side-by-side in a DataFrame
 empty_compare = pd.DataFrame({
     "Filtered DF Empty Columns": pd.Series(empty_cols),
     "Main DF Empty Columns": pd.Series(empty_cols1)
 })
 
-empty_compare
+st.markdown("### 🧩 Side-by-Side Comparison of Empty Columns")
+st.dataframe(empty_compare)
 
-"""#Count how many columns have no data at all"""
-
-# Count columns with all missing values
+st.markdown("### 🔢 Count of Empty Columns")
 empty_columns_count = df.isna().all().sum()
+st.write(f"**Number of columns with no data at all: `{empty_columns_count}`**")
+st.write("**Data Shape:**", df.shape)
 
-print(f"Number of columns with no data at all: {empty_columns_count}")
-print(df.shape)
+st.markdown("---")
 
-"""##To confirm they are indeed empty"""
+# -----------------------------------------------------------
+# 📌 CONFIRM THEY ARE EMPTY
+# -----------------------------------------------------------
+st.markdown("## 🔎 Confirm Missing Values Info")
+st.markdown("### 📊 Count of Missing Values per Column")
+st.write(df.isna().sum())
 
-pd.set_option('display.max_rows', None)
-df.isna().sum()
+st.markdown("### 📊 Percentage of Non-Missing Values")
+st.write(df.notna().mean() * 100)
 
-df.notna().mean() * 100
+st.markdown("---")
 
-"""#**(NEXT)**
-
-##Drop all columns with no data at all
-"""
-
-# Drop columns that have all missing values
+# -----------------------------------------------------------
+# 📌 DROP EMPTY COLUMNS
+# -----------------------------------------------------------
+st.markdown("# 🗑️ (NEXT) Drop All Columns with No Data")
 df = df.dropna(axis=1, how='all')
 
-# Confirm they're gone
-print("Remaining columns:", len(df.columns))
-print(df.columns.tolist())
+st.markdown("### ✅ Remaining Columns After Dropping")
+st.write(f"**Remaining Columns Count:** {len(df.columns)}")
+st.write(df.columns.tolist())
 
-df.isna().sum()
+st.markdown("### 🔍 Missing Values After Cleaning")
+st.write(df.isna().sum())
 
-df.head()
-df.shape
+st.markdown("### 👀 Preview Cleaned DataFrame")
+st.dataframe(df.head())
 
-"""#**(NEXT)**
+st.markdown("### 📐 New Shape")
+st.write(df.shape)
+
+st.markdown('''
 
 #We will have to shorten some colunmn name
 
@@ -503,7 +518,7 @@ Here’s a breakdown of the columns that should be renamed for readability and e
 | Final Comments | | |
 | FINAL COMMENTS/Do you have any other comments or remarks? | final_comments_resp | Respondent comments |
 | "FINAL COMMENTS/Dear Interviewer / enumerator, do you have any important observation remarks?" | final_comments_enum | Enumerator remarks |
-"""
+''')
 
 # Rename long or complex column names
 rename_dict = {
@@ -829,13 +844,14 @@ rename_dict = {
 }
 
 # Apply the rename mapping
-df.rename(columns=rename_dict, inplace=True)
+st.write(df.rename(columns=rename_dict, inplace=True))
 
 # Confirm change
-print("Columns renamed successfully!")
-print(df.columns.tolist()[:20])  # Show first 20 for preview
+st.markdown("## 🔄 Execute Column Renaming — Part 1")
+st.write(df.columns.tolist()[:10]) 
 
-"""## Rename the remaining columns
+st.markdown('''
+## Rename the remaining columns
 
 Here is your table **cleanly formatted in a clear tabular structure** with three columns:
 **Original Column Structure | Shortened Column Name | Description / Notes**
@@ -925,9 +941,8 @@ Here is your table **cleanly formatted in a clear tabular structure** with three
 | Respondent comments                                                      | final_comments_respondent                      | Final respondent input.                                                                 |
 | Enumerator remarks                                                       | final_comments_enumerator_remarks              | Enumerator’s notes.                                                                     |
 | FINAL COMMENTS/Filled Form No.: **${interview_id}**                                                                 | final_comments_form_id                         | Interview ID.                                                                           |
-"""
+''')
 
-import pandas as pd
 
 column_rename_map_part2 = {
     # --- Livestock Keeping ---
@@ -1367,17 +1382,23 @@ column_rename_map_part2 = {
 
 # --- 2. Execute the Renaming ---
 # Assuming your DataFrame is loaded into a variable named 'df'.
+st.markdown("## 🔄 Execute Column Renaming — Part 2")
+
 try:
-    # Use the new map for the second batch of renaming
+    # Attempt the renaming
     df.rename(columns=column_rename_map_part2, inplace=True)
-    print("Column renaming (Part 2) executed successfully!")
+
+    st.success("✅ Column renaming (Part 2) executed successfully!")
 
 except NameError:
-    print("Error: The DataFrame 'df' was not found. Please ensure your DataFrame is loaded and named 'df'.")
-except Exception as e:
-    print(f"An unexpected error occurred during renaming: {e}")
+    st.error("❌ Error: The DataFrame **'df'** was not found. Please ensure the DataFrame is loaded and named **df**.")
 
-"""| Original Column Name | Shortened Column Name | Section |
+except Exception as e:
+    st.error(f"⚠️ An unexpected error occurred during renaming: **{e}**")
+
+st.markdown('''
+
+| Original Column Name | Shortened Column Name | Section |
 |---------------------|--------------------|---------|
 | RESPONDENT'S IDENTIFICATION |  |  |
 | RESPONDENT'S IDENTIFICATION/What is the phone number of the respondent? | resp_phone_number | ID |
@@ -1627,10 +1648,9 @@ except Exception as e:
 | LIVESTOCK KEEPING/Which animals do you keep (domesticate)?/rabbit | livestock_kept_rabbit_check | Animals Kept |
 | LIVESTOCK KEEPING/Which animals do you keep (domesticate)?/dog | livestock_kept_dog_check | Animals Kept |
 
-"""
+''')
 
-import pandas as pd
-# Assuming 'df' is your existing DataFrame
+st.markdown("## 🔄 Renaming Column  — Part 3")
 
 # Dictionary mapping Old Column Names to New Short Column Names
 rename_map = {
@@ -1898,310 +1918,418 @@ rename_map = {
     'LIVESTOCK KEEPING/Which animals do you keep (domesticate)?/dog': 'livestock_kept_dog_check'
 }
 
-# Apply the renaming to the DataFrame
-df = df.rename(columns=rename_map)
+st.markdown("## 🏷️ Apply Column Renaming to DataFrame")
 
-print("Columns renamed successfully.")
+try:
+    df = df.rename(columns=rename_map)
+    st.success("✅ Columns renamed successfully!")
 
-df.columns.to_list()
+except NameError:
+    st.error("❌ Error: The DataFrame **df** or the dictionary **rename_map** was not found.")
 
-df.isna().sum()
+except Exception as e:
+    st.error(f"⚠️ Unexpected error during renaming: **{e}**")
 
-df[['start','end']].head(10)
 
-"""#**(NEXT)**
 
-## We want to split each into date and time columns while keeping Rwanda time (UTC+2)
-"""
+# -----------------------------------------------------------
+# ⏱️ 1. Convert start/end to Rwanda Time (UTC+2)
+# -----------------------------------------------------------
+st.markdown("## ⏱️ Convert `start` and `end` Datetime Columns to Rwanda Time (UTC+2)")
 
-# Convert to datetime correctly (forcing UTC handling)
-df['start'] = pd.to_datetime(df['start'], utc=True, errors='coerce')
-df['end'] = pd.to_datetime(df['end'], utc=True, errors='coerce')
+try:
+    # Convert to datetime in UTC
+    df['start'] = pd.to_datetime(df['start'], utc=True, errors='coerce')
+    df['end'] = pd.to_datetime(df['end'], utc=True, errors='coerce')
 
-# Convert from UTC to Rwanda time (Rwanda = UTC+2)
-df['start'] = df['start'].dt.tz_convert('Africa/Kigali')
-df['end'] = df['end'].dt.tz_convert('Africa/Kigali')
+    # Convert to Rwanda timezone
+    df['start'] = df['start'].dt.tz_convert('Africa/Kigali')
+    df['end'] = df['end'].dt.tz_convert('Africa/Kigali')
 
-# Create separate date and time columns
-df['start_date'] = df['start'].dt.date
-df['start_time'] = df['start'].dt.time
-df['end_date'] = df['end'].dt.date
-df['end_time'] = df['end'].dt.time
+    # Create date/time split
+    df['start_date'] = df['start'].dt.date
+    df['start_time'] = df['start'].dt.time
+    df['end_date'] = df['end'].dt.date
+    df['end_time'] = df['end'].dt.time
 
-# Display to verify
-df[['start_date', 'start_time', 'end_date', 'end_time']].head(10)
+    st.success("✅ Start/end columns successfully converted & split into date + time.")
 
-"""#**(NEXT)**
+    st.markdown("### 🔍 Preview (First 10 Rows)")
+    st.dataframe(df[['start_date', 'start_time', 'end_date', 'end_time']].head())
 
-Now let’s just format the time columns to show only hours, minutes, and seconds (no microseconds)
-"""
+except Exception as e:
+    st.error(f"Error during datetime conversion: {e}")
 
-import pytz  # For timezone handling if not already imported
+st.markdown("---")
 
-# Convert to datetime correctly (forcing UTC handling)
-df['start'] = pd.to_datetime(df['start'], utc=True, errors='coerce')
-df['end'] = pd.to_datetime(df['end'], utc=True, errors='coerce')
+# -----------------------------------------------------------
+# ⏱️ 2. Format time columns to HH:MM:SS
+# -----------------------------------------------------------
+st.markdown("## ⏱️ Format Time Columns to `HH:MM:SS`")
 
-# Convert from UTC to Rwanda time (Africa/Kigali = UTC+2)
-df['start'] = df['start'].dt.tz_convert('Africa/Kigali')
-df['end'] = df['end'].dt.tz_convert('Africa/Kigali')
+try:
+    df['start_time'] = df['start_time'].astype(str).str[:8]
+    df['end_time'] = df['end_time'].astype(str).str[:8]
 
-# Create separate date and time columns
-df['start_date'] = df['start'].dt.date
-df['start_time'] = df['start'].dt.time
-df['end_date'] = df['end'].dt.date
-df['end_time'] = df['end'].dt.time
+    st.success("✅ Time columns formatted successfully (HH:MM:SS).")
 
-# Optional: Format times as clean HH:MM:SS strings
-df['start_time'] = df['start_time'].astype(str).str[:8]
-df['end_time'] = df['end_time'].astype(str).str[:8]
+    st.markdown("### 🔍 Preview")
+    st.dataframe(df[['start_date', 'start_time', 'end_date', 'end_time']].head(10))
 
-# Display to verify (shows 10 rows as in your example)
-display(df[['start_date', 'start_time', 'end_date', 'end_time']].head(10))
+    valid = df['start'].notna().sum()
+    st.info(f"Rows with valid start/end times: **{valid} / {len(df)}**")
 
-# Quick stats: Check for any remaining NaTs
-print(f"Rows with valid start/end times: {df['start'].notna().sum()}/{len(df)}")
+except Exception as e:
+    st.error(f"Error formatting times: {e}")
 
-"""#**(NEXT)**
+st.markdown("---")
 
-We make start_date, start_time, end_date, and end_time appear as the first four columns and drop old columns
-"""
+# -----------------------------------------------------------
+# 🔄 3. Reorder columns (start_date, start_time, end_date, end_time first)
+# -----------------------------------------------------------
+st.markdown("## 🔄 Reorder Columns and Drop Old Datetime Columns")
 
-# Drop old datetime columns
-df.drop(['start', 'end'], axis=1, inplace=True)
+try:
+    df.drop(['start', 'end'], axis=1, inplace=True)
 
-# Reorder so new columns appear at the top
-cols = ['start_date', 'start_time', 'end_date', 'end_time'] + [c for c in df.columns if c not in ['start_date', 'start_time', 'end_date', 'end_time']]
-df = df[cols]
+    new_order = ['start_date', 'start_time', 'end_date', 'end_time']
+    other_cols = [c for c in df.columns if c not in new_order]
+    df = df[new_order + other_cols]
 
-# Confirm the new order
-df.head(10)
+    st.success("✅ Columns reordered successfully.")
+    st.dataframe(df.head())
 
-df['_submission_time'].head()
+except Exception as e:
+    st.error(f"Error reordering columns: {e}")
 
-"""#**(NEXT)**
+st.markdown("---")
 
-I create submission_date and submission_time columns from _submission_time, and formatted to show only hours, minutes, and seconds
-"""
+# -----------------------------------------------------------
+# 📨 4. Process _submission_time → submission_date + submission_time
+# -----------------------------------------------------------
+st.markdown("## 📨 Process `_submission_time` into Date and Time Columns")
 
-# Convert '_submission_time' to datetime and localize to Africa/Kigali
-df['_submission_time'] = pd.to_datetime(df['_submission_time'], utc=True).dt.tz_convert('Africa/Kigali')
+try:
+    df['_submission_time'] = (
+        pd.to_datetime(df['_submission_time'], utc=True)
+        .dt.tz_convert('Africa/Kigali')
+    )
 
-# Create separate date and time columns
-df['submission_date'] = df['_submission_time'].dt.date
-df['submission_time'] = df['_submission_time'].dt.strftime('%H:%M:%S')
+    df['submission_date'] = df['_submission_time'].dt.date
+    df['submission_time'] = df['_submission_time'].dt.strftime('%H:%M:%S')
 
-# Optionally move the new columns next to the top 4 date/time columns
-cols = ['start_date', 'start_time', 'end_date', 'end_time', 'submission_date', 'submission_time'] + \
-       [c for c in df.columns if c not in ['start_date', 'start_time', 'end_date', 'end_time', 'submission_date', 'submission_time']]
+    # Reorder with submission columns included
+    first_cols = [
+        'start_date', 'start_time',
+        'end_date', 'end_time',
+        'submission_date', 'submission_time'
+    ]
+    others = [c for c in df.columns if c not in first_cols]
+    df = df[first_cols + others]
 
-df = df[cols]
+    st.success("✅ Submission columns created & formatted.")
+    st.dataframe(df.head(10))
 
-# Preview
-df.head(10)
+except Exception as e:
+    st.error(f"Error processing submission time: {e}")
 
-df.drop(columns=['_submission_time'], inplace=True)
-df.head()
+st.markdown("---")
 
-df.shape
+# -----------------------------------------------------------
+# 🗑️ 5. Drop original _submission_time
+# -----------------------------------------------------------
+st.markdown("## 🗑️ Drop Original `_submission_time` Column")
 
-"""#**(NEXT)**
+try:
+    df.drop(columns=['_submission_time'], inplace=True)
+    st.success("✅ `_submission_time` removed.")
+except Exception as e:
+    st.warning(f"Could not drop column (maybe already removed): {e}")
 
-Convert the today column to a proper date type
-"""
+st.markdown("### 📏 Final DataFrame Shape")
+st.write(df.shape)
 
-df["today"] = pd.to_datetime(df["today"], errors='coerce').dt.date
+st.markdown("---")
 
-df.head()
 
-"""move the _index column to the first position in the  DataFrame"""
 
-# Move _index to the first column
-cols = ['_index'] + [col for col in df.columns if col != '_index']
-df = df[cols]
+# -----------------------------------------------------------
+# 📅 Convert `today` Column to Proper Date Type
+# -----------------------------------------------------------
+st.markdown("## 📅 Convert `today` Column to Date")
 
-print(" '_index' moved to the first position.")
-df.head()
+try:
+    df["today"] = pd.to_datetime(df["today"], errors='coerce').dt.date
+    st.success("`today` successfully converted to date.")
+    st.dataframe(df.head())
 
-"""#**(NEXT)**
+except Exception as e:
+    st.error(f"Error converting `today`: {e}")
 
-##We can clean all those variations ("Yes!", "No!", "YES!", "NO!", etc.) to Standardize 'Yes' and 'No' responses across the DataFrame
-"""
+st.markdown("---")
 
-# Standardize 'Yes' and 'No' responses across the DataFrame
-df = df.replace({
-    'Yes!': 'Yes',
-    'No!': 'No',
-    'YES!': 'Yes',
-    'NO!': 'No',
-    'YES': 'Yes',
-    'NO': 'No'
-})
+# -----------------------------------------------------------
+# 📌 Move `_index` Column to First Position
+# -----------------------------------------------------------
+st.markdown("## 📌 Move `_index` Column to First Position")
 
-# Print unique values for all columns
-for col in df.columns:
-    unique_vals = df[col].unique().tolist()
-    print(f"{col}: unique values -> {unique_vals}")
+try:
+    cols = ['_index'] + [col for col in df.columns if col != '_index']
+    df = df[cols]
+    st.success("`_index` moved to the first position.")
+    st.dataframe(df.head())
 
-"""#**(NEXT)**
+except Exception as e:
+    st.error(f"Error moving `_index`: {e}")
 
-##We Identify columns with only 0, 0 and 1 as unique values
-"""
+st.markdown("---")
 
-# Identify columns in df that have very few unique values (e.g., only 0s, 1s, or all same)
-few_unique_cols = [col for col in df.columns if df[col].nunique() <= 2]
+# -----------------------------------------------------------
+# 🧹 Standardize Yes/No Responses
+# -----------------------------------------------------------
+st.markdown("## 🧹 Standardize `Yes` and `No` Responses")
 
-# Display the result with unique values for context
-for col in few_unique_cols:
-    print(f"{col}: unique values -> {df[col].unique().tolist()}")
+try:
+    df = df.replace({
+        'Yes!': 'Yes', 'No!': 'No',
+        'YES!': 'Yes', 'NO!': 'No',
+        'YES': 'Yes', 'NO': 'No'
+    })
 
-df.shape
+    st.success("Standardized Yes/No values successfully.")
 
-# # Identify binary columns (those that only contain 0s and 1s)
-# binary_cols = [col for col in df.columns if sorted(df[col].dropna().unique()) == [0, 1]]
+    # Show unique values per column
+    st.markdown("### 🔍 Unique Values After Cleaning")
+    for col in df.columns:
+        st.write(f"**{col}:** {df[col].unique().tolist()}")
 
-# # Replace 0/1 with 'No'/'Yes' in those columns
-# df[binary_cols] = df[binary_cols].replace({0: 'No', 1: 'Yes'})
+except Exception as e:
+    st.error(f"Error standardizing Yes/No: {e}")
 
-# print(f"Converted {len(binary_cols)} binary columns to 'Yes'/'No' format.")
-# print("Example columns converted:", binary_cols)
+st.markdown("---")
 
-"""This will cleanly convert:
+# -----------------------------------------------------------
+# 🔎 Identify Columns with Few Unique Values
+# -----------------------------------------------------------
+st.markdown("## 🔎 Identify Columns with Only 0, 1, or ≤2 Unique Values")
 
-Any Yes → 1
+try:
+    few_unique_cols = [col for col in df.columns if df[col].nunique() <= 2]
 
-Any No → 0
+    for col in few_unique_cols:
+        st.write(f"**{col}:** {df[col].unique().tolist()}")
 
-Both wtp_* full-sentence answer columns → 1/0
-"""
+    st.info(f"Found **{len(few_unique_cols)}** columns with ≤2 unique values.")
 
-# Define the comprehensive Yes/No mapping
-yes_no_map = {
-    'Yes': 1, 'No': 0,
-    'YES': 1, 'NO': 0,
-    'yes': 1, 'no': 0,
-    'Yes, I am willing to pay': 1,
-    'No, I am not willing to pay': 0
-}
+except Exception as e:
+    st.error(f"Error finding few-unique columns: {e}")
 
-# Identify string columns (object dtype)
-string_cols = df.select_dtypes(include=['object']).columns
+st.markdown("---")
 
-# Apply the replacement map only to string columns
-for col in string_cols:
-    # Use str.replace(regex=False) for direct value replacement
-    df[col] = df[col].replace(yes_no_map)
+# -----------------------------------------------------------
+# 🔢 Convert Yes/No to 1/0 for All String Columns
+# -----------------------------------------------------------
+st.markdown("## 🔢 Convert Yes/No Responses to 1/0")
 
-# This step is often necessary if the original column had mixed types (text and non-text)
-for col in df.columns:
-    if df[col].isin([0, 1]).all() and df[col].dtype == 'object':
-        df[col] = df[col].astype(int)
+try:
+    yes_no_map = {
+        'Yes': 1, 'No': 0,
+        'YES': 1, 'NO': 0,
+        'yes': 1, 'no': 0,
+        'Yes, I am willing to pay': 1,
+        'No, I am not willing to pay': 0
+    }
 
-print("Done converting Yes/No columns to 1/0.")
+    string_cols = df.select_dtypes(include=['object']).columns
 
-"""###Check that it worked"""
+    for col in string_cols:
+        df[col] = df[col].replace(yes_no_map)
 
-for col in df.columns:
-    unique_vals = df[col].unique().tolist()
-    print(f"{col}: unique values -> {unique_vals}")
+    for col in df.columns:
+        if df[col].isin([0, 1]).all() and df[col].dtype == 'object':
+            df[col] = df[col].astype(int)
 
-# Create summary table for DataFrame info
+    st.success("Converted Yes/No responses to 1/0.")
+
+    # Display unique values again
+    st.markdown("### 🔍 Unique Values After Conversion")
+    for col in df.columns:
+        st.write(f"**{col}:** {df[col].unique().tolist()}")
+
+except Exception as e:
+    st.error(f"Error converting Yes/No to 1/0: {e}")
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 📘 Summary Table
+# -----------------------------------------------------------
+st.markdown("## 📘 Data Summary Table")
+
 summary = pd.DataFrame({
     'Column': df.columns,
-    'Data Type': df.dtypes,
+    'Data Type': df.dtypes.astype(str),
     'Non-Null Count': df.notnull().sum(),
     'Null Count': df.isnull().sum(),
     'Unique Values': df.nunique()
-}).reset_index(drop=True)
-
-# Display top rows of summary table
-summary.head(10)
-
-"""##Converts ALL your age-related columns into clean, ready-to-use actual years (2025-based)"""
-
-df[['resp_birth_year','resp_age',
-    'resp_start_year_forest',
-    'resp_start_year_wetland',
-    'resp_years_area_forest',
-    'resp_years_area_wetland']
-].apply(lambda x: x.unique())
-
-"""##Convert resp_birth_year → resp_age"""
-
-from datetime import datetime
-
-current_year = datetime.now().year
-df['resp_age'] = current_year - df['resp_birth_year']
-
-"""##Replace 1946 in resp_start_year_wetland with 79"""
-
-df['resp_start_year_wetland'] = df['resp_start_year_wetland'].replace(1946, 79)
-
-df.drop(columns=['resp_years_area_wetland', 'resp_start_year_forest', 'resp_birth_year'], inplace=True)
-
-df = df.rename(columns={
-    'resp_start_year_wetland': 'resp_years_area_wetland'
 })
 
-"""##Rename resp_start_year_wetland → resp_years_area_wetland"""
+st.dataframe(summary.head(10))
 
-df = df.rename(columns={
-    'resp_start_year_wetland': 'resp_years_area_wetland'
-})
+st.markdown("---")
 
-"""## Full Code to Convert resp_years_area_wetland Into Years of Experience (as of 2025)"""
+# -----------------------------------------------------------
+# 🎂 Convert Age-Related Columns
+# -----------------------------------------------------------
+st.markdown("## 🎂 Convert Age-Related Columns")
 
-import numpy as np
+try:
+    st.write(df[['resp_birth_year','resp_age',
+                 'resp_start_year_forest',
+                 'resp_start_year_wetland',
+                 'resp_years_area_forest',
+                 'resp_years_area_wetland']].apply(lambda x: x.unique()))
 
+except Exception:
+    st.warning("Some age columns were not found.")
 
-# Convert to numeric
-df["resp_years_area_wetland"] = pd.to_numeric(df["resp_years_area_wetland"], errors='coerce')
+st.markdown("---")
 
-# Create the corrected column
-def convert_wetland(val):
-    if pd.isna(val):
+# -----------------------------------------------------------
+# 🧮 Convert Birth Year → Age
+# -----------------------------------------------------------
+st.markdown("## 🧮 Convert `resp_birth_year` → `resp_age`")
+
+try:
+    from datetime import datetime
+    current_year = datetime.now().year
+
+    df['resp_age'] = current_year - df['resp_birth_year']
+    st.success("`resp_age` calculated successfully.")
+
+except Exception as e:
+    st.error(f"Error converting resp_birth_year: {e}")
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🔧 Replace 1946 in resp_start_year_wetland With 79
+# -----------------------------------------------------------
+st.markdown("## 🔧 Fix Value in `resp_start_year_wetland`")
+
+try:
+    df['resp_start_year_wetland'] = df['resp_start_year_wetland'].replace(1946, 79)
+    st.success("Replaced 1946 with 79 in resp_start_year_wetland.")
+
+except Exception as e:
+    st.error(f"Error fixing resp_start_year_wetland: {e}")
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🗑️ Drop Unneeded Columns
+# -----------------------------------------------------------
+st.markdown("## 🗑️ Drop Unneeded Age Columns")
+
+try:
+    df.drop(columns=['resp_years_area_wetland', 'resp_start_year_forest', 'resp_birth_year'], inplace=True)
+    st.success("Dropped unneeded age columns.")
+except Exception as e:
+    st.warning(f"Could not drop columns: {e}")
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# ✏️ Rename resp_start_year_wetland → resp_years_area_wetland
+# -----------------------------------------------------------
+st.markdown("## ✏️ Rename `resp_start_year_wetland` → `resp_years_area_wetland`")
+
+try:
+    df = df.rename(columns={'resp_start_year_wetland': 'resp_years_area_wetland'})
+    st.success("Column renamed successfully.")
+except Exception as e:
+    st.error(f"Error renaming column: {e}")
+
+st.markdown("### 🔍 Final Preview")
+st.dataframe(df.head())
+
+st.markdown("### 📏 Final Shape")
+st.write(df.shape)
+
+# -----------------------------------------------------------
+# 🎯 Convert `resp_years_area_wetland` Into Years of Experience (as of 2025)
+# -----------------------------------------------------------
+st.markdown("## 🎯 Convert `resp_years_area_wetland` Into Years of Experience (as of 2025)")
+
+try:
+    # Convert to numeric
+    df["resp_years_area_wetland"] = pd.to_numeric(df["resp_years_area_wetland"], errors='coerce')
+
+    # Conversion function
+    def convert_wetland(val):
+        if pd.isna(val):
+            return np.nan
+        
+        # Case 1: value looks like a YEAR (e.g., 1950–2025)
+        if val > 1900:
+            return 2025 - val
+
+        # Case 2: already years of experience (0–120)
+        if 0 <= val <= 120:
+            return val
+
+        # Case 3: invalid
         return np.nan
 
-    # Type A: Values like 1950–2025 → interpret as YEAR
-    if val > 1900:
-        return 2025 - val
+    # Apply conversion
+    df["resp_years_area_wetland"] = df["resp_years_area_wetland"].apply(convert_wetland)
 
-    # Type B: Already years of experience (< 200)
-    if 0 <= val <= 120:
-        return val
+    # Remove negative values
+    df.loc[df["resp_years_area_wetland"] < 0, "resp_years_area_wetland"] = np.nan
 
-    # Otherwise impossible
-    return np.nan
+    st.success("Converted `resp_years_area_wetland` successfully.")
 
-df["resp_years_area_wetland"] = df["resp_years_area_wetland"].apply(convert_wetland)
+    st.markdown("### 🔍 Preview (first 20 rows)")
+    st.dataframe(df["resp_years_area_wetland"].head(20))
 
-# Ensure no negative values
-df.loc[df["resp_years_area_wetland"] < 0,
-       "resp_years_area_wetland"] = np.nan
+    st.markdown("### 🔢 Unique Values")
+    st.write(df["resp_years_area_wetland"].unique())
 
-print(df[ "resp_years_area_wetland"].head(20))
+    st.markdown("### 🔎 Compare with Related Columns")
+    st.write(
+        df[[
+            'resp_age',
+            'resp_years_area_wetland',
+            'resp_years_area_forest',
+        ]].apply(lambda x: x.unique())
+    )
 
-df["resp_years_area_wetland"].unique()
+except Exception as e:
+    st.error(f"Error converting wetland years: {e}")
 
-df[['resp_age',
-    'resp_years_area_wetland',
-    'resp_years_area_forest',
-    ]
-].apply(lambda x: x.unique())
+st.markdown("---")
 
-"""#**(NEXT)**
+# -----------------------------------------------------------
+# 📊 Detect Outliers in Numerical Columns
+# -----------------------------------------------------------
+st.markdown("## 📊 Detect Outliers in Numerical Columns")
 
-Lets  Detect  Outliers
+try:
+    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
 
-Outliers mostly affect numerical columns. Here’s how you can handle them systematically
-"""
+    st.markdown("### 📌 List of Numerical Columns")
+    st.write(numeric_cols.tolist())
 
-numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+    st.markdown("### 📈 Summary Statistics (`df.describe()`)")
+    st.dataframe(df[numeric_cols].describe())
+
+    st.info("Use the summary to detect skewed columns, extreme values, and distribution anomalies.")
+
+except Exception as e:
+    st.error(f"Error describing numerical columns: {e}")
 
 
-df[numeric_cols].describe()
-
-"""
+st.markdown('''
 
 # ✅ **FINAL OUTLIER DIAGNOSIS (Based on the Data)**
 
