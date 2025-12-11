@@ -5,6 +5,8 @@ import sys
 import os
 import pytz
 import streamlit as st
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # -----------------------------------------------------------
 # 📌 TITLE
@@ -2467,14 +2469,14 @@ All values within expected realistic ranges.
 
 * `gps_altitude` → **0**
 
-"""
+''')
 
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 
-# Load your dataset
-# df = pd.read_csv('your_file.csv')  # Uncomment and modify
+
+# -----------------------------------------------------------
+# 📊 Outlier Detection using IQR
+# -----------------------------------------------------------
+st.markdown("## 📊 Detect Outliers in Numeric Columns (IQR Method)")
 
 # Columns to exclude
 exclude_cols = ['enum_phone_1', 'enum_phone_2', 'resp_phone_number', 'resp_serial_no']
@@ -2482,52 +2484,83 @@ exclude_cols = ['enum_phone_1', 'enum_phone_2', 'resp_phone_number', 'resp_seria
 # Select numeric columns except excluded ones
 numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.difference(exclude_cols)
 
-# Function to count outliers using IQR
+st.info(f"Found **{len(numeric_cols)} numeric columns** for outlier analysis.")
+
+# Function to count IQR outliers
 def count_outliers(series):
     Q1 = series.quantile(0.25)
     Q3 = series.quantile(0.75)
     IQR = Q3 - Q1
-    outliers = series[(series < Q1 - 1.5*IQR) | (series > Q3 + 1.5*IQR)]
+    outliers = series[(series < Q1 - 1.5 * IQR) | (series > Q3 + 1.5 * IQR)]
     return len(outliers)
 
 # Count outliers per column
 outlier_counts = {col: count_outliers(df[col]) for col in numeric_cols}
+
+# Sort top 10 columns with most outliers
 top10_cols = sorted(outlier_counts, key=outlier_counts.get, reverse=True)[:10]
 
-# Plot boxplots for top 10 columns with most outliers
-plt.figure(figsize=(12, 8))
-sns.boxplot(data=df[top10_cols], orient='h')
-plt.title('Top 10 Columns with Most Outliers')
-plt.xlabel('Value')
-plt.ylabel('Variables')
-plt.show()
+st.markdown("### 🔟 Top 10 Columns With the Most Outliers")
+st.write(top10_cols)
 
-"""#**(NEXT)**
+# -----------------------------------------------------------
+# 📦 Boxplot Visualization (Streamlit-friendly)
+# -----------------------------------------------------------
+st.markdown("### 📦 Boxplot of Top 10 Outlier Columns")
 
-## I investigate gps_precision to the outlier
-"""
+fig, ax = plt.subplots(figsize=(12, 8))
+sns.boxplot(data=df[top10_cols], orient='h', ax=ax)
+ax.set_title("Top 10 Columns with Most Outliers")
+ax.set_xlabel("Value")
+ax.set_ylabel("Variables")
+st.pyplot(fig)
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🛰️ Investigate gps_precision Outliers
+# -----------------------------------------------------------
+st.markdown("## 🛰️ Investigating `gps_precision` Outliers")
 
 df_sorted = df.sort_values(by='gps_precision', ascending=False)
-df_sorted.head(10)
+st.dataframe(df_sorted.head(10))
 
-"""## Its obvious its a typo error. Now we replace 3400.000 with 34 and 3099.999 with 31"""
+st.info("Detected unrealistic values like **3400.0** and **3099.999**, likely typographical errors.")
 
-df['gps_precision'] = df['gps_precision'].replace({3400.0: 34, 3099.999: 31})
+# -----------------------------------------------------------
+# 🔧 Correct Typo Errors in gps_precision
+# -----------------------------------------------------------
+st.markdown("### 🔧 Fix Typo Values in `gps_precision`")
 
-df_sorted = df.sort_values(by='gps_precision', ascending=False)
-df_sorted.head(10)
+df['gps_precision'] = df['gps_precision'].replace({
+    3400.0: 34,
+    3099.999: 31
+})
 
-"""#**(NEXT)**
+df_sorted2 = df.sort_values(by='gps_precision', ascending=False)
 
-## **2. Accessing the crop sheet and cleaning the data**
-"""
+st.success("Typo values corrected successfully.")
+st.dataframe(df_sorted2.head(10))
 
-crop_df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx", sheet_name="crop")
-crop_df.head()
+st.markdown("---")
 
-crop_df.columns
+# -----------------------------------------------------------
+# 🌾 Load the Crop Sheet From Excel
+# -----------------------------------------------------------
+st.markdown("## 🌾 Load Crop Sheet From Excel")
 
-"""#**(NEXT)**
+try:
+    crop_df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx", sheet_name="crop")
+    st.success("Crop sheet loaded successfully.")
+    st.dataframe(crop_df.head())
+
+    st.markdown("### 🧾 Crop Sheet Columns")
+    st.write(list(crop_df.columns))
+
+except Exception as e:
+    st.error(f"Error loading crop sheet: {e}")
+
+st.markdown('''
 
 ###We’ll create clean, conventional names while keeping a reference dictionary to preserve the original column names for traceability
 
@@ -2568,7 +2601,7 @@ crop_df.columns
 | crop_list                | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop(s) do you cultivate?                                                                                      |
 | crop_area_equiv_calc     | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency_calculation                                                                   |
 | crop_hectare_equiv_note  | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare in ${unit_farming_area} is:                                                          |
-"""
+''')
 
 column_map = {
     "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop do you cultivate?": "crop_type",
@@ -2608,84 +2641,208 @@ column_map = {
     "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare in ${unit_farming_area} is:": "crop_hectare_equiv_note"
 }
 
-# Apply rename
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+st.title("📊 Data Cleaning & Outlier Investigation Dashboard")
+st.markdown("---")
+
+############################################################
+# 📌 LOAD DATA
+############################################################
+st.markdown("## **1️⃣ Load Dataset**")
+df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx")
+
+st.markdown("### 📄 **Preview (Head)**")
+st.dataframe(df.head())
+
+st.markdown("### 🧮 **Shape of Dataset**")
+st.write(df.shape)
+
+st.markdown("---")
+
+############################################################
+# 📌 FIND EMPTY COLUMNS
+############################################################
+st.markdown("## **2️⃣ Find Columns With No Data**")
+
+empty_cols = df.columns[df.isna().all()].tolist()
+empty_cols1 = df.columns[df.isna().all()].tolist()
+
+empty_compare = pd.DataFrame({
+    "Filtered DF Empty Columns": pd.Series(empty_cols),
+    "Main DF Empty Columns": pd.Series(empty_cols1)
+})
+
+st.markdown("### 🟣 **Columns With All Missing Values (Comparison)**")
+st.dataframe(empty_compare)
+
+empty_columns_count = df.isna().all().sum()
+
+st.markdown("### 🔢 **Number of Empty Columns**")
+st.write(empty_columns_count)
+
+st.markdown("### 📌 NA Count per Column")
+st.write(df.isna().sum())
+
+st.markdown("### 📌 Non-Missing Percentage (%)")
+st.write(df.notna().mean() * 100)
+
+st.markdown("---")
+
+############################################################
+# 📌 DROP EMPTY COLUMNS
+############################################################
+st.markdown("## **3️⃣ Drop Columns With No Data**")
+
+df = df.dropna(axis=1, how='all')
+
+st.markdown("### 📌 Remaining Columns")
+st.write(len(df.columns))
+st.write(df.columns.tolist())
+
+st.markdown("### 📄 **Preview After Dropping Empty Columns**")
+st.dataframe(df.head())
+
+st.write(df.shape)
+
+st.markdown("---")
+
+############################################################
+# 📌 APPLY RENAMING (PART 2)
+############################################################
+st.markdown("## **4️⃣ Column Renaming (Part 2)**")
+
+try:
+    df.rename(columns=column_rename_map_part2, inplace=True)
+    st.success("Column renaming (Part 2) executed successfully!")
+except NameError:
+    st.error("Error: The DataFrame 'df' was not found.")
+except Exception as e:
+    st.error(f"Unexpected error: {e}")
+
+st.markdown("---")
+
+############################################################
+# 📌 APPLY MAIN RENAMING MAP
+############################################################
+st.markdown("## **5️⃣ Apply Main Renaming Map**")
+
+df = df.rename(columns=rename_map)
+st.success("Columns renamed successfully.")
+
+st.write(df.columns.to_list())
+st.write(df.isna().sum())
+
+st.markdown("### 📌 Check `start` & `end` Columns")
+st.dataframe(df[['start','end']].head(10))
+
+st.markdown("---")
+
+############################################################
+# 📌 OUTLIER CHECKING
+############################################################
+st.markdown("## **6️⃣ Outlier Investigation (Top 10 Columns)**")
+
+exclude_cols = ['enum_phone_1', 'enum_phone_2', 'resp_phone_number', 'resp_serial_no']
+numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.difference(exclude_cols)
+
+def count_outliers(series):
+    Q1 = series.quantile(0.25)
+    Q3 = series.quantile(0.75)
+    IQR = Q3 - Q1
+    return len(series[(series < Q1 - 1.5*IQR) | (series > Q3 + 1.5*IQR)])
+
+outlier_counts = {col: count_outliers(df[col]) for col in numeric_cols}
+top10_cols = sorted(outlier_counts, key=outlier_counts.get, reverse=True)[:10]
+
+st.markdown("### 📊 Boxplot of Top 10 Outlier Columns")
+plt.figure(figsize=(12, 8))
+sns.boxplot(data=df[top10_cols], orient='h')
+plt.title('Top 10 Columns with Most Outliers')
+plt.xlabel('Value'); plt.ylabel('Variables')
+st.pyplot(plt)
+
+st.markdown("---")
+
+############################################################
+# 📌 INVESTIGATE GPS
+############################################################
+st.markdown("## **7️⃣ Inspect `gps_precision` Outliers**")
+
+df_sorted = df.sort_values(by='gps_precision', ascending=False)
+st.dataframe(df_sorted.head(10))
+
+st.info("Replacing 3400 → 34 and 3099.999 → 31")
+
+df['gps_precision'] = df['gps_precision'].replace({3400.0: 34, 3099.999: 31})
+
+df_sorted = df.sort_values(by='gps_precision', ascending=False)
+st.dataframe(df_sorted.head(10))
+
+st.markdown("---")
+
+############################################################
+# 📌 LOAD CROP SHEET
+############################################################
+st.markdown("## **8️⃣ Load & Clean Crop Sheet**")
+
+crop_df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx", sheet_name="crop")
+st.dataframe(crop_df.head())
+
+st.write(crop_df.columns)
+
+st.markdown("---")
+
+############################################################
+# 📌 Apply Crop Rename Map
+############################################################
+st.markdown("## **9️⃣ Apply Crop Rename Map**")
+
 crop_df.rename(columns=column_map, inplace=True)
-crop_df.head()
+st.dataframe(crop_df.head())
+st.write(crop_df.info())
+st.write(crop_df.isna().sum())
 
-crop_df.info()
-
-crop_df.isna().sum()
-
-"""Looking at the above you will see that there are columns that as no data at all hence those columns need to be drop
-
-#**(NEXT)**
-
-We want to see only the columns that are completely empty
-"""
-
+st.markdown("### 🔍 Completely Empty Crop Columns")
 empty_cols = crop_df.columns[crop_df.isna().all()].tolist()
-print("Columns with no data at all:")
-print(empty_cols)
+st.write(empty_cols)
 
-"""#**(NEXT)**
-
-Now we drop all columns with no data at all (completely empty columns)
-"""
-
-# Drop columns that have all missing values
+st.markdown("### 🗑 Drop Empty Columns")
 crop_df = crop_df.dropna(axis=1, how='all')
+st.write(crop_df.columns.tolist())
+st.write(crop_df.shape)
+st.write(crop_df.info())
 
-# Confirm they're gone
-print("Remaining columns:", len(crop_df.columns))
-print(crop_df.columns.tolist())
+st.markdown("---")
 
-crop_df.shape
+############################################################
+# 📌 CREATE SUBMISSION DATE & TIME
+############################################################
+st.markdown("## 🔟 Create Submission Date & Time (UTC+2)")
 
-crop_df.info()
-
-"""#**(NEXT)**
-
-###Now we create submission_date and submission_time columns from our _submission_time column in Rwanda time (UTC+2), formatted to show hours, minutes, and seconds (HH:MM:SS)
-"""
-
-# Convert the column to datetime and set timezone to UTC
 crop_df['_submission__submission_time'] = pd.to_datetime(
     crop_df['_submission__submission_time'], errors='coerce', utc=True
 )
 
-# Convert to Rwanda time zone (UTC+2)
 crop_df['_submission__submission_time'] = crop_df['_submission__submission_time'].dt.tz_convert('Africa/Kigali')
 
-# Create new date and time columns
 crop_df['submission_date'] = crop_df['_submission__submission_time'].dt.date
 crop_df['submission_time'] = crop_df['_submission__submission_time'].dt.strftime('%H:%M:%S')
 
-# Display a preview
-crop_df[['submission_date', 'submission_time']].head()
-
-"""#**(NEXT)**
-
-Drop _submission__submission_time column
-"""
+st.dataframe(crop_df[['submission_date', 'submission_time']].head())
 
 crop_df.drop(columns=['_submission__submission_time'], inplace=True)
-crop_df.head()
 
-"""#**(NEXT)**
+st.markdown("---")
 
-###Create a clean, uniform version of the column by mapping all variants to consistent labels
+############################################################
+# 📌 STANDARDIZE CROP CYCLE DURATION
+############################################################
+st.markdown("## **1️⃣1️⃣ Standardize Crop Cycle Duration**")
 
-
-| Original value      | Standardized name |
-| ------------------- | ----------------- |
-| week                | Week              |
-| month               | Month             |
-| quarter (3 months)  | Quarter           |
-| semester (6 months) | Semester          |
-| year                | Year              |
-"""
-
-# Clean and standardize crop cycle duration names
 crop_df['crop_cycle_duration_clean'] = crop_df['crop_cycle_duration'].str.lower().map({
     'week': 'Week',
     'month': 'Month',
@@ -2693,96 +2850,58 @@ crop_df['crop_cycle_duration_clean'] = crop_df['crop_cycle_duration'].str.lower(
     'semester (6 months)': 'Semester',
     'year': 'Year'
 })
-crop_df.head()
 
-"""Replace are to arce"""
+st.dataframe(crop_df.head())
 
-crop_df['crop_area_unit'].unique()
-
+st.markdown("## **Replace `are` → `acre` in crop area units**")
 crop_df['crop_area_unit'] = crop_df['crop_area_unit'].replace('are', 'acre')
 
-crop_df['crop_area_unit'].unique()
+st.write(crop_df['crop_area_unit'].unique())
+st.dataframe(crop_df.head())
 
-crop_df.head()
-
-"""Identify columns in df that have very few unique values (e.g., only 0s, 1s, or all same)"""
-
-# Identify columns in df that have very few unique values (e.g., only 0s, 1s, or all same)
-few_unique_cols = [col for col in crop_df.columns if crop_df[col].nunique() <= 2]
-
-# Display the result with unique values for context
-for col in few_unique_cols:
-    print(f"{col}: unique values -> {crop_df[col].unique().tolist()}")
-
-"""#**(NEXT)**
-
-Check numeric columns for outliers
-"""
-
-numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
-crop_df[numeric_cols].describe()
-
-"""
-
-### Obvious outliers:
-
-1. **`crop_area_hectare_equiv`**
-
-   * Mean: 10,345
-   * Max: 107,639 → ~10x higher than the 75th percentile (10,000) → extreme high outlier
-
-2. **`crop_yield_quantity`**
-
-   * Mean: 1,381, 75%: 3,125, Max: 7,500 → right-skewed, extreme high values
-
-3. **`crop_harvest_frequency`**
-
-   * Max: 52, 75%: 4 → very extreme value, likely a data entry error
-
-4. **`crop_unit_to_kg`**
-
-   * Max: 4,000, 75%: 2.5 → extreme, probably wrong units
-
-5. **`crop_yield_kg_ha_year`**
-
-   * Max: 550,000 vs 75%: 18,248 → huge outlier
-
-6. **`crop_market_price`**
-
-   * Max: 350,000, 75%: 550 → extreme
-
-7. **`crop_cost_rent_land`, `crop_cost_manpower`, `crop_cost_fertilizer`, `crop_cost_seeds`, `crop_cost_pesticides`, `crop_cost_other`, `crop_expenses_total`, `crop_annual_profit`**
-
-   * Negative min values (e.g., `-7,033,400`) → clear outliers
-   * Max values way beyond 75% → extreme high values
-
-8. **`crop_labor_count`**
-
-   * Max: 10,000 vs 75%: 8.5 → unrealistic
-
-9. **`crop_value_per_ha`**
-
-   * Max: 397,535,439 vs 75%: 232,212,052 → huge outlier
-
----
-
-### Summary:
-
-* Many numeric columns are **heavily skewed** with both extremely large max values and occasional negative values.
-* Columns like `crop_harvest_frequency`, `crop_unit_to_kg`, `crop_labor_count`, `crop_yield_kg_ha_year`, and `crop_annual_profit` should be **checked for data entry errors**.
-
-
-
-"""
-
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Select numeric columns
-numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
+st.set_option('deprecation.showPyplotGlobalUse', False)
 
-# Compute outliers per column using IQR
+# -----------------------------------------------------------
+# 🔹 1. Identify Columns with Few Unique Values
+# -----------------------------------------------------------
+st.markdown("## 🔹 Identify Columns with Very Few Unique Values (0/1 or all same)")
+
+few_unique_cols = [col for col in crop_df.columns if crop_df[col].nunique() <= 2]
+
+st.write("Columns with ≤2 unique values and their unique values:")
+for col in few_unique_cols:
+    st.write(f"**{col}:** {crop_df[col].unique().tolist()}")
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🔹 2. Check Numeric Columns for Outliers
+# -----------------------------------------------------------
+st.markdown("## 🔹 Numeric Columns Summary")
+
+numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
+st.dataframe(crop_df[numeric_cols].describe())
+
+st.markdown("""
+### ⚠️ Obvious Outliers Observed
+
+* crop_area_hectare_equiv, crop_yield_quantity, crop_harvest_frequency, crop_unit_to_kg, crop_yield_kg_ha_year  
+* crop_market_price, crop_cost_*, crop_labor_count, crop_value_per_ha  
+* Many columns are **heavily skewed** or contain **negative/implausible values**  
+""")
+
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🔹 3. Compute Outliers Using IQR
+# -----------------------------------------------------------
+st.markdown("## 🔹 Compute Outliers Per Column (IQR)")
+
 iqr_dict = {}
 outlier_counts = {}
 for col in numeric_cols:
@@ -2793,42 +2912,32 @@ for col in numeric_cols:
     outlier_counts[col] = outliers.sum()
     iqr_dict[col] = outliers.sum()
 
-# Top 10 columns with most outliers
 top_cols = sorted(iqr_dict, key=iqr_dict.get, reverse=True)[:10]
+st.write("Top 10 columns with most outliers:", top_cols)
 
-# Plot boxplots with outlier counts
-plt.figure(figsize=(18, 8))
-for i, col in enumerate(top_cols, 1):
-    plt.subplot(2, 5, i)
-    sns.boxplot(y=crop_df[col])
-    plt.title(f"{col}\nOutliers: {outlier_counts[col]}")
+# -----------------------------------------------------------
+# 🔹 4. Visualize Outliers Before Winsorization
+# -----------------------------------------------------------
+st.markdown("## 🔹 Boxplots of Top 10 Columns with Most Outliers")
+
+fig, axes = plt.subplots(2, 5, figsize=(18, 8))
+axes = axes.flatten()
+for i, col in enumerate(top_cols):
+    sns.boxplot(y=crop_df[col], ax=axes[i])
+    axes[i].set_title(f"{col}\nOutliers: {outlier_counts[col]}")
 plt.tight_layout()
-plt.show()
+st.pyplot(fig)
 
-"""##Instead of removing outliers, a common approach is to cap them at the IQR boundaries (also called Winsorization) or replace them with a central value like the median."""
+st.markdown("---")
 
-numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
+# -----------------------------------------------------------
+# 🔹 5. Winsorization / Handle Outliers
+# -----------------------------------------------------------
+st.markdown("## 🔹 Handle Outliers Using Winsorization (Capping at IQR)")
 
-for col in numeric_cols:
-    Q1 = crop_df[col].quantile(0.25)
-    Q3 = crop_df[col].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-
-    median = crop_df[col].median()
-
-    # Replace outliers with median
-    crop_df[col] = crop_df[col].apply(lambda x: median if x < lower_bound or x > upper_bound else x)
-
-# Select numeric columns
-numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
-
-# Make a copy of the original for comparison
 df_before = crop_df.copy()
-
-# ----- Handling outliers (Winsorization example) -----
 df_after = crop_df.copy()
+
 for col in numeric_cols:
     Q1 = df_after[col].quantile(0.25)
     Q3 = df_after[col].quantile(0.75)
@@ -2837,34 +2946,22 @@ for col in numeric_cols:
     upper_bound = Q3 + 1.5 * IQR
     df_after[col] = df_after[col].clip(lower=lower_bound, upper=upper_bound)
 
-# ----- Visualization -----
-# Create subplots
-fig, axes = plt.subplots(nrows=len(numeric_cols), ncols=2, figsize=(14, len(numeric_cols)*3))
+st.success("✅ Outliers capped at IQR boundaries (Winsorized).")
+st.write("Shape after Winsorization:", df_after.shape)
 
-for i, col in enumerate(numeric_cols):
-    sns.boxplot(x=df_before[col], ax=axes[i, 0], color='lightblue')
-    axes[i, 0].set
+st.markdown("""
+* Original data (`df_before`) remains intact  
+* Winsorized data (`df_after`) has outliers capped  
+* Number of rows/columns remains the same
+""")
 
-"""
+st.markdown("---")
 
-What happens in the code is:
+# -----------------------------------------------------------
+# 🔹 6. Merge Crop Data with Main DataFrame
+# -----------------------------------------------------------
+st.markdown("## 🔹 Merge Crop Data with Main DataFrame")
 
-* **Original data (`df_before`)** stays completely intact.
-* **Outliers are “handled” in `df_after`**, not removed—they are **replaced** with the nearest non-outlier value (Winsorization).
-* The number of rows and columns **remains exactly the same**.
-
-So you can safely compare **before vs after** without losing any records.
-
-"""
-
-crop_df.shape
-
-"""#**(NEXT)**
-
-#**3. Merge and Integrate Data**
-"""
-
-# List of columns you want to keep
 cols_to_keep = [
     'submission_time', 'crop_type', 'crop_cycle_duration', 'crop_area_unit',
     'crop_area_hectare_equiv', 'crop_area_size', 'crop_yield_unit',
@@ -2876,32 +2973,29 @@ cols_to_keep = [
     'crop_annual_profit', 'crop_value_per_ha', 'crop_cycle_duration_clean'
 ]
 
-# Subset the dataframe to just these columns
 crop_df_subset = crop_df[cols_to_keep]
 
-# Aggregate numeric columns and keep first occurrence for non-numeric
 numeric_cols = crop_df_subset.select_dtypes(include=['float64', 'int64']).columns.tolist()
 non_numeric_cols = [c for c in cols_to_keep if c not in numeric_cols and c != 'submission_time']
 
-# Group by submission_time
 crop_df_unique = crop_df_subset.groupby('submission_time').agg(
     {**{col: 'mean' for col in numeric_cols},
      **{col: 'first' for col in non_numeric_cols}}
 ).reset_index()
 
-# Merge with df
 merged_df = pd.merge(df, crop_df_unique, on='submission_time', how='left')
+st.success("✅ Crop data merged with main DataFrame")
+st.write("Merged DataFrame shape:", merged_df.shape)
 
-merged_df.shape
+st.markdown("---")
 
-"""#**(NEXT)**
+# -----------------------------------------------------------
+# 🔹 7. Check Empty Columns After Merge
+# -----------------------------------------------------------
+st.markdown("## 🔹 Columns Completely Empty After Merge")
 
-# Check columns that are completely empty
-"""
-
-# Check columns that are completely empty
 empty_columns = merged_df.columns[merged_df.isna().all()].tolist()
-
-print("Columns that are completely empty:")
-for col in empty_columns:
-    print(col)
+if empty_columns:
+    st.write("Columns that are completely empty:", empty_columns)
+else:
+    st.write("No completely empty columns found.")
