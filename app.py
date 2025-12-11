@@ -16,7 +16,7 @@ st.markdown("---")
 # 📌 LOAD DATA
 # -----------------------------------------------------------
 st.markdown("## 📥 Load Dataset")
-df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx")
+df = pd.read_excel(r"(S-1-03-11 Household Question).xlsx")
 st.markdown("### 🔍 First Look at DataFrame")
 st.dataframe(df.head())
 
