@@ -4,3 +4,4 @@ pytz
 streamlit
 matplotlib
 seaborn
+numpy
