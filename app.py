@@ -2878,3 +2878,20 @@ if empty_columns:
     st.write("Columns that are completely empty:", empty_columns)
 else:
     st.write("No completely empty columns found.")
+    
+st.markdown("---")
+
+st.subheader("Download Merged Crop Dataset")
+
+@st.cache_data
+def convert_df_to_csv(df):
+    return df.to_csv(index=False).encode('utf-8')
+
+csv_download = convert_df_to_csv(merged_df)
+
+st.download_button(
+    label="📥 Download merged_df as CSV",
+    data=csv_download,
+    file_name='merged_crop_dataset.csv',
+    mime='text/csv'
+)
