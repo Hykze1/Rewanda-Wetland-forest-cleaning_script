@@ -2523,14 +2523,12 @@ try:
     st.dataframe(crop_df.head())
 
     st.markdown("### 🧾 Crop Sheet Columns")
-    st.write(list(crop_df.columns))
-
 except Exception as e:
     st.error(f"Error loading crop sheet: {e}")
 
 st.markdown('''
 
-###We’ll create clean, conventional names while keeping a reference dictionary to preserve the original column names for traceability
+We’ll create clean, conventional names while keeping a reference dictionary to preserve the original column names for traceability
 
 | New Column Name           | Original Column Full Name                                                                                                                                                     |
 |--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -2608,36 +2606,19 @@ column_map = {
     "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency_calculation": "crop_area_equiv_calc",
     "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare in ${unit_farming_area} is:": "crop_hectare_equiv_note"
 }
-
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+# Apply rename
+crop_df.rename(columns=column_map, inplace=True)
+st.dataframe(crop_df.head())
+st.write(crop_df.shape)
+st.markdown("---")
 
 st.title("📊 Data Cleaning & Outlier Investigation Dashboard")
-st.markdown("---")
 
-############################################################
-# 📌 LOAD DATA
-############################################################
-st.markdown("## **1️⃣ Load Dataset**")
-df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx")
 
-st.markdown("### 📄 **Preview (Head)**")
-st.dataframe(df.head())
-
-st.markdown("### 🧮 **Shape of Dataset**")
-st.write(df.shape)
-
-st.markdown("---")
-
-############################################################
-# 📌 FIND EMPTY COLUMNS
-############################################################
 st.markdown("## **2️⃣ Find Columns With No Data**")
 
-empty_cols = df.columns[df.isna().all()].tolist()
-empty_cols1 = df.columns[df.isna().all()].tolist()
+empty_cols = crop_df.columns[crop_df.isna().all()].tolist()
+empty_cols1 = crop_df.columns[crop_df.isna().all()].tolist()
 
 empty_compare = pd.DataFrame({
     "Filtered DF Empty Columns": pd.Series(empty_cols),
@@ -2647,16 +2628,16 @@ empty_compare = pd.DataFrame({
 st.markdown("### 🟣 **Columns With All Missing Values (Comparison)**")
 st.dataframe(empty_compare)
 
-empty_columns_count = df.isna().all().sum()
+empty_columns_count = crop_df.isna().all().sum()
 
 st.markdown("### 🔢 **Number of Empty Columns**")
 st.write(empty_columns_count)
 
 st.markdown("### 📌 NA Count per Column")
-st.write(df.isna().sum())
+st.write(crop_df.isna().sum())
 
 st.markdown("### 📌 Non-Missing Percentage (%)")
-st.write(df.notna().mean() * 100)
+st.write(crop_df.notna().mean() * 100)
 
 st.markdown("---")
 
@@ -2665,124 +2646,16 @@ st.markdown("---")
 ############################################################
 st.markdown("## **3️⃣ Drop Columns With No Data**")
 
-df = df.dropna(axis=1, how='all')
+crop_df = crop_df.dropna(axis=1, how='all')
 
 st.markdown("### 📌 Remaining Columns")
-st.write(len(df.columns))
-st.write(df.columns.tolist())
+st.write(len(crop_df.columns))
+st.write(crop_df.columns.tolist())
 
 st.markdown("### 📄 **Preview After Dropping Empty Columns**")
-st.dataframe(df.head())
-
-st.write(df.shape)
-
-st.markdown("---")
-
-############################################################
-# 📌 APPLY RENAMING (PART 2)
-############################################################
-st.markdown("## **4️⃣ Column Renaming (Part 2)**")
-
-try:
-    df.rename(columns=column_rename_map_part2, inplace=True)
-    st.success("Column renaming (Part 2) executed successfully!")
-except NameError:
-    st.error("Error: The DataFrame 'df' was not found.")
-except Exception as e:
-    st.error(f"Unexpected error: {e}")
-
-st.markdown("---")
-
-############################################################
-# 📌 APPLY MAIN RENAMING MAP
-############################################################
-st.markdown("## **5️⃣ Apply Main Renaming Map**")
-
-df = df.rename(columns=rename_map)
-st.success("Columns renamed successfully.")
-
-st.write(df.columns.to_list())
-st.write(df.isna().sum())
-
-st.markdown("### 📌 Check `start` & `end` Columns")
-st.dataframe(df[['start','end']].head(10))
-
-st.markdown("---")
-
-############################################################
-# 📌 OUTLIER CHECKING
-############################################################
-st.markdown("## **6️⃣ Outlier Investigation (Top 10 Columns)**")
-
-exclude_cols = ['enum_phone_1', 'enum_phone_2', 'resp_phone_number', 'resp_serial_no']
-numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.difference(exclude_cols)
-
-def count_outliers(series):
-    Q1 = series.quantile(0.25)
-    Q3 = series.quantile(0.75)
-    IQR = Q3 - Q1
-    return len(series[(series < Q1 - 1.5*IQR) | (series > Q3 + 1.5*IQR)])
-
-outlier_counts = {col: count_outliers(df[col]) for col in numeric_cols}
-top10_cols = sorted(outlier_counts, key=outlier_counts.get, reverse=True)[:10]
-
-st.markdown("### 📊 Boxplot of Top 10 Outlier Columns")
-plt.figure(figsize=(12, 8))
-sns.boxplot(data=df[top10_cols], orient='h')
-plt.title('Top 10 Columns with Most Outliers')
-plt.xlabel('Value'); plt.ylabel('Variables')
-st.pyplot(plt)
-
-st.markdown("---")
-
-############################################################
-# 📌 INVESTIGATE GPS
-############################################################
-st.markdown("## **7️⃣ Inspect `gps_precision` Outliers**")
-
-df_sorted = df.sort_values(by='gps_precision', ascending=False)
-st.dataframe(df_sorted.head(10))
-
-st.info("Replacing 3400 → 34 and 3099.999 → 31")
-
-df['gps_precision'] = df['gps_precision'].replace({3400.0: 34, 3099.999: 31})
-
-df_sorted = df.sort_values(by='gps_precision', ascending=False)
-st.dataframe(df_sorted.head(10))
-
-st.markdown("---")
-
-############################################################
-# 📌 LOAD CROP SHEET
-############################################################
-st.markdown("## **8️⃣ Load & Clean Crop Sheet**")
-
-crop_df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx", sheet_name="crop")
 st.dataframe(crop_df.head())
 
-st.write(crop_df.columns)
-
-st.markdown("---")
-
-############################################################
-# 📌 Apply Crop Rename Map
-############################################################
-st.markdown("## **9️⃣ Apply Crop Rename Map**")
-
-crop_df.rename(columns=column_map, inplace=True)
-st.dataframe(crop_df.head())
-st.write(crop_df.info())
-st.write(crop_df.isna().sum())
-
-st.markdown("### 🔍 Completely Empty Crop Columns")
-empty_cols = crop_df.columns[crop_df.isna().all()].tolist()
-st.write(empty_cols)
-
-st.markdown("### 🗑 Drop Empty Columns")
-crop_df = crop_df.dropna(axis=1, how='all')
-st.write(crop_df.columns.tolist())
 st.write(crop_df.shape)
-st.write(crop_df.info())
 
 st.markdown("---")
 
@@ -2851,12 +2724,57 @@ numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
 st.dataframe(crop_df[numeric_cols].describe())
 
 st.markdown("""
-### ⚠️ Obvious Outliers Observed
 
-* crop_area_hectare_equiv, crop_yield_quantity, crop_harvest_frequency, crop_unit_to_kg, crop_yield_kg_ha_year  
-* crop_market_price, crop_cost_*, crop_labor_count, crop_value_per_ha  
-* Many columns are **heavily skewed** or contain **negative/implausible values**  
+
+### Obvious outliers:
+
+1. **`crop_area_hectare_equiv`**
+
+   * Mean: 10,345
+   * Max: 107,639 → ~10x higher than the 75th percentile (10,000) → extreme high outlier
+
+2. **`crop_yield_quantity`**
+
+   * Mean: 1,381, 75%: 3,125, Max: 7,500 → right-skewed, extreme high values
+
+3. **`crop_harvest_frequency`**
+
+   * Max: 52, 75%: 4 → very extreme value, likely a data entry error
+
+4. **`crop_unit_to_kg`**
+
+   * Max: 4,000, 75%: 2.5 → extreme, probably wrong units
+
+5. **`crop_yield_kg_ha_year`**
+
+   * Max: 550,000 vs 75%: 18,248 → huge outlier
+
+6. **`crop_market_price`**
+
+   * Max: 350,000, 75%: 550 → extreme
+
+7. **`crop_cost_rent_land`, `crop_cost_manpower`, `crop_cost_fertilizer`, `crop_cost_seeds`, `crop_cost_pesticides`, `crop_cost_other`, `crop_expenses_total`, `crop_annual_profit`**
+
+   * Negative min values (e.g., `-7,033,400`) → clear outliers
+   * Max values way beyond 75% → extreme high values
+
+8. **`crop_labor_count`**
+
+   * Max: 10,000 vs 75%: 8.5 → unrealistic
+
+9. **`crop_value_per_ha`**
+
+   * Max: 397,535,439 vs 75%: 232,212,052 → huge outlier
+
+---
+
+### Summary:
+
+* Many numeric columns are **heavily skewed** with both extremely large max values and occasional negative values.
+* Columns like `crop_harvest_frequency`, `crop_unit_to_kg`, `crop_labor_count`, `crop_yield_kg_ha_year`, and `crop_annual_profit` should be **checked for data entry errors**.
+ 
 """)
+
 
 st.markdown("---")
 
