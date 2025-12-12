@@ -2122,9 +2122,11 @@ st.markdown("---")
 # -----------------------------------------------------------
 st.markdown("## 🔢 Check that it worked")
 
-for col in df.columns:
-    unique_vals = df[col].unique().tolist()
-    st.write(f"{col}: unique values -> {unique_vals}")
+few_unique_cols = [col for col in df.columns if df[col].nunique() <= 2]
+
+for col in few_unique_cols:
+    st.write(f"{col}: {df[col].unique().tolist()}")
+
 
 st.markdown("---")
 
