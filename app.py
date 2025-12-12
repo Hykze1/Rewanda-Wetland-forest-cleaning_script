@@ -2110,23 +2110,7 @@ except Exception as e:
 
 st.markdown("---")
 
-# -----------------------------------------------------------
-# 🔎 Identify Columns with Few Unique Values
-# -----------------------------------------------------------
-st.markdown("## 🔎 Identify Columns with Only 0, 1, or ≤2 Unique Values")
 
-try:
-    few_unique_cols = [col for col in df.columns if df[col].nunique() <= 2]
-
-    for col in few_unique_cols:
-        st.write(f"**{col}:** {df[col].unique().tolist()}")
-
-    st.info(f"Found **{len(few_unique_cols)}** columns with ≤2 unique values.")
-
-except Exception as e:
-    st.error(f"Error finding few-unique columns: {e}")
-
-st.markdown("---")
 
 # -----------------------------------------------------------
 # 🔢 Convert Yes/No to 1/0 for All String Columns
