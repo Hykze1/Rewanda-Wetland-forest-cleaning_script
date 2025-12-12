@@ -2518,7 +2518,7 @@ st.markdown("---")
 st.markdown("## 🌾 Load Crop Sheet From Excel")
 
 try:
-    crop_df = pd.read_excel(r"/content/(S-1-03-11 Household Question.xlsx", sheet_name="crop")
+    crop_df = pd.read_excel(r"(S-1-03-11 Household Question).xlsx", sheet_name="crop")
     st.success("Crop sheet loaded successfully.")
     st.dataframe(crop_df.head())
 
