@@ -2091,59 +2091,40 @@ st.markdown("---")
 # -----------------------------------------------------------
 st.markdown("## 🧹 Standardize `Yes` and `No` Responses")
 
-try:
-    df = df.replace({
-        'Yes!': 'Yes', 'No!': 'No',
-        'YES!': 'Yes', 'NO!': 'No',
-        'YES': 'Yes', 'NO': 'No'
-    })
+# Define the comprehensive Yes/No mapping
+yes_no_map = {
+    'Yes': 1, 'No': 0,
+    'YES': 1, 'NO': 0,
+    'yes': 1, 'no': 0,
+    'Yes, I am willing to pay': 1,
+    'No, I am not willing to pay': 0
+}
 
-    st.success("Standardized Yes/No values successfully.")
+# Identify string columns (object dtype)
+string_cols = df.select_dtypes(include=['object']).columns
 
-    # Show unique values per column
-    st.markdown("### 🔍 Unique Values After Cleaning")
-    for col in df.columns:
-        st.write(f"**{col}:** {df[col].unique().tolist()}")
+# Apply the replacement map only to string columns
+for col in string_cols:
+    # Use str.replace(regex=False) for direct value replacement
+    df[col] = df[col].replace(yes_no_map)
 
-except Exception as e:
-    st.error(f"Error standardizing Yes/No: {e}")
+# This step is often necessary if the original column had mixed types (text and non-text)
+for col in df.columns:
+    if df[col].isin([0, 1]).all() and df[col].dtype == 'object':
+        df[col] = df[col].astype(int)
+
+st.success("Done converting Yes/No columns to 1/0.")
 
 st.markdown("---")
 
-
-
 # -----------------------------------------------------------
-# 🔢 Convert Yes/No to 1/0 for All String Columns
+# 🔢 Check that it worked
 # -----------------------------------------------------------
-st.markdown("## 🔢 Convert Yes/No Responses to 1/0")
+st.markdown("## 🔢 Check that it worked")
 
-try:
-    yes_no_map = {
-        'Yes': 1, 'No': 0,
-        'YES': 1, 'NO': 0,
-        'yes': 1, 'no': 0,
-        'Yes, I am willing to pay': 1,
-        'No, I am not willing to pay': 0
-    }
-
-    string_cols = df.select_dtypes(include=['object']).columns
-
-    for col in string_cols:
-        df[col] = df[col].replace(yes_no_map)
-
-    for col in df.columns:
-        if df[col].isin([0, 1]).all() and df[col].dtype == 'object':
-            df[col] = df[col].astype(int)
-
-    st.success("Converted Yes/No responses to 1/0.")
-
-    # Display unique values again
-    st.markdown("### 🔍 Unique Values After Conversion")
-    for col in df.columns:
-        st.write(f"**{col}:** {df[col].unique().tolist()}")
-
-except Exception as e:
-    st.error(f"Error converting Yes/No to 1/0: {e}")
+for col in df.columns:
+    unique_vals = df[col].unique().tolist()
+    st.write(f"{col}: unique values -> {unique_vals}")
 
 st.markdown("---")
 
@@ -2842,11 +2823,6 @@ crop_df['crop_area_unit'] = crop_df['crop_area_unit'].replace('are', 'acre')
 
 st.write(crop_df['crop_area_unit'].unique())
 st.dataframe(crop_df.head())
-
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
