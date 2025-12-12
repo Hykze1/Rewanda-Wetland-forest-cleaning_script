@@ -2700,8 +2700,6 @@ crop_df['crop_area_unit'] = crop_df['crop_area_unit'].replace('are', 'acre')
 st.write(crop_df['crop_area_unit'].unique())
 st.dataframe(crop_df.head())
 
-st.set_option('deprecation.showPyplotGlobalUse', False)
-
 # -----------------------------------------------------------
 # 🔹 1. Identify Columns with Few Unique Values
 # -----------------------------------------------------------
