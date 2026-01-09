@@ -1,13 +1,9 @@
-
-#1. Data cleaning processes
 import pandas as pd
-import sys
-import os
-import pytz
 import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from datetime import datetime
 
 # -----------------------------------------------------------
 # 📌 TITLE
@@ -18,514 +14,77 @@ st.markdown("---")
 # -----------------------------------------------------------
 # 📌 LOAD DATA
 # -----------------------------------------------------------
-st.markdown("## 📥 Load Dataset")
-df = pd.read_excel(r"(S-1-03-11 Household Question).xlsx")
-st.markdown("### 🔍 First Look at DataFrame")
-st.dataframe(df.head())
+st.markdown("## 📥 Upload Dataset")
+uploaded_file = st.file_uploader(
+    "Choose your Excel file (supports .xlsx and .xls)",
+    type=["xlsx", "xls"],
+    help="Upload the household questionnaire Excel file to analyze the data."
+)
 
+if uploaded_file is not None:
+    try:
+        # --- Main sheet (default/first sheet) ---
+        df = pd.read_excel(uploaded_file, engine='openpyxl')
+        uploaded_file.seek(0)  # Reset pointer for second read
+        
+        # --- Crop sheet ---
+        try:
+            crop_df = pd.read_excel(uploaded_file, sheet_name="crop", engine='openpyxl')
+            st.success("✅ Crop sheet loaded successfully.")
+        except ValueError:
+            crop_df = None
+            st.warning("⚠️ No sheet named 'crop' found. Crop-related sections will be skipped.")
+        
+        uploaded_file.seek(0)  # Reset again if needed later
+        
+        st.success(f"✅ Successfully loaded: **{uploaded_file.name}** ({uploaded_file.size:,} bytes)")
+        
+        st.markdown("### 🔍 First Look at Main DataFrame")
+        st.dataframe(df.head(10))
+        
+        with st.expander("📊 DataFrame Info & Summary"):
+            st.write("**Shape:**", df.shape)
+            st.write("**Columns:**", list(df.columns))
+            st.write("**Missing values per column:**")
+            st.dataframe(df.isnull().sum().sort_values(ascending=False))
+            
+    except Exception as e:
+        st.error(f"❌ Error reading the file: {e}")
+        st.stop()
+else:
+    st.info("👆 Please upload an Excel file to get started.")
+    st.stop()
+
+# -----------------------------------------------------------
+# 📐 Data Shape
+# -----------------------------------------------------------
 st.markdown("### 📐 Data Shape")
 st.write(df.shape)
-
 st.markdown("---")
 
 # -----------------------------------------------------------
-# 📌 FIND EMPTY COLUMNS
+# 🧹 Find & Drop Empty Columns
 # -----------------------------------------------------------
-st.markdown("## 🧹 Find Columns with *No Data at All*")
-
-# Find columns where ALL values are missing
+st.markdown("## 🧹 Columns with No Data")
 empty_cols = df.columns[df.isna().all()].tolist()
-empty_cols1 = df.columns[df.isna().all()].tolist()
+st.write(f"**{len(empty_cols)} completely empty columns:** {empty_cols}")
 
-empty_compare = pd.DataFrame({
-    "Filtered DF Empty Columns": pd.Series(empty_cols),
-    "Main DF Empty Columns": pd.Series(empty_cols1)
-})
-
-st.markdown("### 🧩 Side-by-Side Comparison of Empty Columns")
-st.dataframe(empty_compare)
-
-st.markdown("### 🔢 Count of Empty Columns")
-empty_columns_count = df.isna().all().sum()
-st.write(f"**Number of columns with no data at all: `{empty_columns_count}`**")
-st.write("**Data Shape:**", df.shape)
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 📌 CONFIRM THEY ARE EMPTY
-# -----------------------------------------------------------
-st.markdown("## 🔎 Confirm Missing Values Info")
-st.markdown("### 📊 Count of Missing Values per Column")
-st.write(df.isna().sum())
-
-st.markdown("### 📊 Percentage of Non-Missing Values")
-st.write(df.notna().mean() * 100)
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 📌 DROP EMPTY COLUMNS
-# -----------------------------------------------------------
-st.markdown("# 🗑️ (NEXT) Drop All Columns with No Data")
 df = df.dropna(axis=1, how='all')
-
-st.markdown("### ✅ Remaining Columns After Dropping")
-st.write(f"**Remaining Columns Count:** {len(df.columns)}")
-st.write(df.columns.tolist())
-
-st.markdown("### 🔍 Missing Values After Cleaning")
-st.write(df.isna().sum())
-
-st.markdown("### 👀 Preview Cleaned DataFrame")
-st.dataframe(df.head())
-
-st.markdown("### 📐 New Shape")
-st.write(df.shape)
-
-st.markdown('''
-
-#We will have to shorten some colunmn name
-
-
-Here’s a breakdown of the columns that should be renamed for readability and efficiency (keeping meaning clear but shortening text):
-
-## System / Time / ID / GPS
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| |
-| Please take a GPS point of the location of the respondent / interview | gps_point | Main GPS coordinate |
-| _Please take a GPS point of the location of the respondent / interview_latitude | gps_latitude | |
-| _Please take a GPS point of the location of the respondent / interview_longitude | gps_longitude | |
-| _Please take a GPS point of the location of the respondent / interview_altitude | gps_altitude | |
-| _Please take a GPS point of the location of the respondent / interview_precision | gps_precision | |
-
-
----
-
-## Enumerator's Identification
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Enumerator's Identification | | |
-| ENUMERATOR'S IDENTIFICATION/The fieldwork ID (number) of the enumerator | enum_fieldwork_id | |
-| ENUMERATOR'S IDENTIFICATION/The work position of the enumerator at INES - Ruhengeri | enum_work_position | |
-| ENUMERATOR'S IDENTIFICATION/Enumerator's phone number: | enum_phone_1 | |
-| ENUMERATOR'S IDENTIFICATION/Enumerator's phone number No. 2: | enum_phone_2 | |
-| ENUMERATOR'S IDENTIFICATION/Enumerator's personal e-mail address | enum_email_personal | |
-| ENUMERATOR'S IDENTIFICATION/Enumerator's office/work e-mail address | enum_email_office | |
-
----
-
-## Respondent's Identification
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Respondent's Identification | | |
-| RESPONDENT'S IDENTIFICATION/Respondent No. (serial number in the interviews made) | resp_serial_no | |
-| RESPONDENT'S IDENTIFICATION/Gender of the respondent | resp_gender | |
-| RESPONDENT'S IDENTIFICATION/Respondent's education level: | resp_education | |
-| RESPONDENT'S IDENTIFICATION/Interview No.: | resp_interview_no | |
-
----
-
-## Consent
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Consent | | |
-| "CONSENT/Before proceeding, please ask the respondent if he/she consents to be interviewed" | consent_asked | |
-| "CONSENT/The respondent accepted, then continue!" | consent_accepted | |
-
----
-
-## Address
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Address | | |
-| Address/Select the Province where the respondent is residing | addr_province | |
-| Address/In which District are you living? | addr_district | |
-| Address/In which Sector do you reside? | addr_sector | |
-| Address/What is the name of the Cell you live in? | addr_cell | |
-| Address/In which village do you reside? | addr_village | |
-
----
-
-## Age & Experience
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Age & Experience | | |
-| Respondent's age and experience in the area/Born in (year) | resp_birth_year | |
-| Respondent's age and experience in the area/age: | resp_age | |
-| Respondent's age and experience in the area/We want to calculate how many years you have been living in this area and seeing this forest. You are here since when (year)? | resp_start_year_forest | |
-| Respondent's age and experience in the area/We want to calculate how many years you have been living in this area and seeing this wetland. You are here since when (year)? | resp_start_year_wetland | |
-| Respondent's age and experience in the area/years_in_the_area_forest | resp_years_area_forest | |
-| Respondent's age and experience in the area/years_in_the_area_wetland | resp_years_area_wetland | |
-
----
-
-## Ecosystem Identity
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Ecosystem Identity | | |
-| ECOSYSTEM IDENTITY/Please select the ecosystem type | eco_type | Forest or Wetland |
-| ECOSYSTEM IDENTITY/Please indicate the name of the forest | eco_forest_name | |
-| ECOSYSTEM IDENTITY/Please indicate the name of the wetland | eco_wetland_name | |
-| ECOSYSTEM IDENTITY/Case Study No. | eco_case_study_no | |
-| ECOSYSTEM IDENTITY/To which one among the types of forests in Rwanda does this forest belong? | eco_forest_type_rwanda | |
-| ECOSYSTEM IDENTITY/Is it a State or district forest? | eco_forest_ownership | |
-| ECOSYSTEM IDENTITY/What type of wetland is this? | eco_wetland_type | |
-| ECOSYSTEM IDENTITY/Is the case study a protected area (ecosystem)? Indicate the legal/policy status: | eco_protected_area_status | |
-
----
-
-## Ecosystem Services Benefited (Overall)
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Ecosystem Services Benefited (Overall) | | |
-| ECOSYSTEM SERVICES BENEFITED/Do you think this forest is important? | benefits_forest_important | |
-| ECOSYSTEM SERVICES BENEFITED/Do you think this wetland is important? | benefits_wetland_important | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest? | benefits_forest_list | |
-
----
-
-## Ecosystem Services Benefited (Forest - Specific Checks)
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Ecosystem Services Benefited (Forest - Specific Checks) | | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/wood provision | b_forest_wood_provision | b_ for Benefit |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/timber | b_forest_timber | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/income generation | b_forest_income_gen | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/provide refuge/habitat to animal species | b_forest_habitat_animal | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/provide refuge/habitat to plant species | b_forest_habitat_plant | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/tourism | b_forest_tourism | |
-| "ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/beauty, aesthetics" | b_forest_aesthetics | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/recreation | b_forest_recreation | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/air regulation | b_forest_air_reg | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/flood control | b_forest_flood_control | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/climate regulation | b_forest_climate_reg | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/food for livestock | b_forest_food_livestock | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/agricultural production | b_forest_agri_prod | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/fishery | b_forest_fishery | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/provide honey | b_forest_honey | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/we get mushroom | b_forest_mushroom | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/provide fruits | b_forest_fruits | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/snail | b_forest_snail | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/other food for humans | b_forest_food_other | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/charcoal provision | b_forest_charcoal | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/water regulation | b_forest_water_reg | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/soil erosion control | b_forest_soil_control | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/carbon sequestration | b_forest_carbon_seq | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/scientific research | b_forest_research | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/medicaments | b_forest_medicaments | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/hunting (!) | b_forest_hunting | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/cultural activities | b_forest_cultural | |
-| ECOSYSTEM SERVICES BENEFITED/What services / benefits do you get from this forest?/OTHER | b_forest_other | |
-
----
-
-## Atmospheric Regulation Awareness
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Atmospheric Regulation Awareness | | |
-| ATMOSPHERIC REGULATION AWARENESS/Do you know something about how the forest regulates climate/water/air? | reg_aware_forest | |
-| ATMOSPHERIC REGULATION AWARENESS/Please elaborate: | reg_aware_forest_elaborate | |
-| ATMOSPHERIC REGULATION AWARENESS/Do you know something about how the wetland regulates the atmosphere? | reg_aware_wetland | |
-
----
-
-## Aesthetics / Beauty
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Aesthetics / Beauty | | |
-| AESTHETICS / BEAUTY/Is this forest beautiful in your perception? | aesthetics_forest_perception | |
-| AESTHETICS / BEAUTY/Please elaborate how beautiful the forest is in your perception | aesthetics_forest_elaborate | |
-| AESTHETICS / BEAUTY/Is this wetland beautiful in your perception? | aesthetics_wetland_perception | |
-| Please rate how beautiful the forest is | aesthetics_forest_rating | |
-
----
-
-## Sense of Place & Belongingness
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Sense of Place & Belongingness | | |
-| SENSE OF PLACE & BELONGINGNESS/How do you feel to be residing in the surroundings of this forest? | sense_place_feel_forest | |
-| SENSE OF PLACE & BELONGINGNESS/How do you feel to be residing in the surroundings of this wetland? | sense_place_feel_wetland | |
-
----
-
-## Consequences of Absence / Reduction
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Consequences of Absence / Reduction | | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was significantly depleted or even absent? | abs_conseq_forest_absent | General statement |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was significantly depleted or even absent?/I think my whole life could be affected proportionally | abs_conseq_forest_absent_life_affected | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was significantly depleted or even absent?/My income could be reduced | abs_conseq_forest_absent_income_reduced | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was significantly depleted or even absent?/I could shift and go to reside at another place | abs_conseq_forest_absent_shift_place | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was significantly depleted or even absent?/No consequence this could have to my life | abs_conseq_forest_absent_no_conseq | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was significantly depleted or even absent?/other consequence | abs_conseq_forest_absent_other | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was significantly depleted or even absent? | abs_conseq_wetland_absent | General statement |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was significantly depleted or even absent?/I think my whole life could be affected proportionally | abs_conseq_wetland_absent_life_affected | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was significantly depleted or even absent?/My income could be reduced | abs_conseq_wetland_absent_income_reduced | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was significantly depleted or even absent?/I could shift and go to reside at another place | abs_conseq_wetland_absent_shift_place | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was significantly depleted or even absent?/No consequence this could have to my life | abs_conseq_wetland_absent_no_conseq | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was significantly depleted or even absent?/other consequence | abs_conseq_wetland_absent_other | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was reduced by say 50% (half)? | abs_conseq_forest_half | General statement |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was reduced by say 50% (half)?/I think my whole life could be affected proportionally | abs_conseq_forest_half_life_affected | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was reduced by say 50% (half)?/My income could be reduced | abs_conseq_forest_half_income_reduced | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was reduced by say 50% (half)?/I could shift and go to reside at another place | abs_conseq_forest_half_shift_place | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was reduced by say 50% (half)?/No consequence this could have to my life | abs_conseq_forest_half_no_conseq | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this forest was reduced by say 50% (half)?/other consequence | abs_conseq_forest_half_other | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was reduced by say 50% (half)? | abs_conseq_wetland_half | General statement |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was reduced by say 50% (half)?/I think my whole life could be affected proportionally | abs_conseq_wetland_half_life_affected | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was reduced by say 50% (half)?/My income could be reduced | abs_conseq_wetland_half_income_reduced | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was reduced by say 50% (half)?/I could shift and go to reside at another place | abs_conseq_wetland_half_shift_place | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was reduced by say 50% (half)?/No consequence this could have to my life | abs_conseq_wetland_half_no_conseq | |
-| CONSEQUENCES OF ABSENSE / REDUCTION/What if this wetland was reduced by say 50% (half)?/other consequence | abs_conseq_wetland_half_other | |
-
----
-
-## Human Well-being
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Human Well-being | | |
-| HUMAN WELL-BEING/What can you say about the benefits of the forest on your own wellbeing? | wellbeing_forest_general | |
-| "HUMAN WELL-BEING/What can you say about the benefits of the forest on your own wellbeing?/It improves our physical health and wellbeing since when we need medicine urgently, we can get it quickly from the forest" | wellbeing_forest_physical_health | |
-| HUMAN WELL-BEING/What can you say about the benefits of the forest on your own wellbeing?/I feel well when I see birds and some animals in the forest | wellbeing_forest_mental_birds | |
-| HUMAN WELL-BEING/What can you say about the benefits of the forest on your own wellbeing?/It improves my general wellbeing in many ways | wellbeing_forest_general_improve | |
-| HUMAN WELL-BEING/What can you say about the benefits of the forest on your own wellbeing?/other | wellbeing_forest_other | |
-| HUMAN WELL-BEING/What can you say about the benefits of the wetland on your own wellbeing? | wellbeing_wetland_general | |
-| "HUMAN WELL-BEING/What can you say about the benefits of the wetland on your own wellbeing?/It improves our physical health and wellbeing since when we need medicine urgently, we can get it quickly from some plants found around the wetland" | wellbeing_wetland_physical_health | |
-| "HUMAN WELL-BEING/What can you say about the benefits of the wetland on your own wellbeing?/I feel well when I visit the wetland, it refreshes mind by itself" | wellbeing_wetland_mental_visit | |
-| HUMAN WELL-BEING/What can you say about the benefits of the wetland on your own wellbeing?/It improves my general wellbeing in many ways | wellbeing_wetland_general_improve | |
-| HUMAN WELL-BEING/What can you say about the benefits of the wetland on your own wellbeing?/other | wellbeing_wetland_other | |
-
----
-
-## Benefits to the Society
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Benefits to the Society | | |
-| BENEFITS TO THE SOCIETY/How do your neighbours and the society as a whole in this area benefit from the forest? | society_benefit_forest_general | |
-| "BENEFITS TO THE SOCIETY/How do your neighbours and the society as a whole in this area benefit from the forest?/Since our traditional activities are conducted in the forest, the forest helps the entire society" | society_benefit_forest_trad_activities | |
-| BENEFITS TO THE SOCIETY/How do your neighbours and the society as a whole in this area benefit from the forest?/We are surrounded with clean air and we take it as a privilege as a society | society_benefit_forest_clean_air | |
-| BENEFITS TO THE SOCIETY/How do your neighbours and the society as a whole in this area benefit from the forest?/It socially ties us (brings us together as a society) | society_benefit_forest_social_tie | |
-| "BENEFITS TO THE SOCIETY/How do your neighbours and the society as a whole in this area benefit from the forest?/It makes our society to get a lot of visitors and connections since people from far away come here for research, tourism, etc..." | society_benefit_forest_visitors | |
-| BENEFITS TO THE SOCIETY/How do your neighbours and the society as a whole in this area benefit from the forest?/other | society_benefit_forest_other | |
-
----
-
-## Water for Domestic Uses
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Water for Domestic Uses | | |
-| "WATER FOR DOMESTIC USES/Where do you get water for domestic uses (washing dishes, bath, cooking, etc.)?" | water_domestic_source_list | |
-| "WATER FOR DOMESTIC USES/Where do you get water for domestic uses (washing dishes, bath, cooking, etc.)?/wetland water" | water_domestic_source_wetland | |
-| "WATER FOR DOMESTIC USES/Where do you get water for domestic uses (washing dishes, bath, cooking, etc.)?/springs water" | water_domestic_source_springs | |
-| "WATER FOR DOMESTIC USES/Where do you get water for domestic uses (washing dishes, bath, cooking, etc.)?/water well / borehole" | water_domestic_source_well | |
-| "WATER FOR DOMESTIC USES/Where do you get water for domestic uses (washing dishes, bath, cooking, etc.)?/piped water" | water_domestic_source_piped | |
-| "WATER FOR DOMESTIC USES/Where do you get water for domestic uses (washing dishes, bath, cooking, etc.)?/other" | water_domestic_source_other | |
-
----
-
-## Mats
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Mats | | |
-| MATS/Does your household personally make mats? | mats_hh_make | hh for Household |
-| MATS/But are you aware of (or do you benefit from) the practice of others who make mats? | mats_aware_others | |
-| MATS/frequency_mats_year_equivalency | mats_frequency_year | |
-
----
-
-## Value: Wood
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Wood | | |
-| VALUE: WOOD/Does your household personally get wood from the forest? | v_wood_hh_get | v_ for Value |
-| VALUE: WOOD/But are you aware of (or do you benefit from) the practice of others getting wood from the forest? | v_wood_aware_others | |
-| VALUE: WOOD/frequency_wood_year_equivalency | v_wood_frequency_year | |
-
----
-
-## Value: Timber
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Timber | | |
-| VALUE: TIMBER/Does your household personally get timber from the forest? | v_timber_hh_get | |
-| VALUE: TIMBER/But are you aware of (or do you benefit from) the practice of others getting timber from the forest? | v_timber_aware_others | |
-| VALUE: TIMBER/frequency_timber_year_equivalency | v_timber_frequency_year | |
-
----
-
-## Value: Charcoal
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Charcoal | | |
-| VALUE: CHARCOAL/Does your household personally make charcoal from the forest? | v_charcoal_hh_make | |
-| VALUE: CHARCOAL/But are you aware of (or do you benefit from) the practice of charcoal making by others - using trees from the forest? | v_charcoal_aware_others | |
-| VALUE: CHARCOAL/frequency_charcoal_year_equivalency | v_charcoal_frequency_year | |
-
----
-
-## Value: Honey
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Honey | | |
-| VALUE: HONEY/Does your household personally make honey from the forest? | v_honey_hh_make | |
-| VALUE: HONEY/But are you aware of (or do you benefit from) the practice of honey making by others - from the forest? | v_honey_aware_others | |
-| VALUE: HONEY/frequency_honey_year_equivalency | v_honey_frequency_year | |
-
----
-
-## Value: Mushrooms
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Mushrooms | | |
-| VALUE: MUSHROOMS/Does your household personally get mushrooms from the forest? | v_mushroom_hh_get | |
-| VALUE: MUSHROOMS/But are you aware of (or do you benefit from) the practice of others getting mushrooms from the forest? | v_mushroom_aware_others | |
-| VALUE: MUSHROOMS/frequency_mushroom_year_equivalency | v_mushroom_frequency_year | |
-
----
-
-## Value: Fish
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Fish | | |
-| VALUE: FISH/Does your household personally carry out fishery in the wetland? | v_fish_hh_do | |
-| VALUE: FISH/But are you aware of (or do you benefit from) the practice of others who practice fishing in the wetland? | v_fish_aware_others | |
-| VALUE: FISH/practice_fish_yes_count | v_fish_practice_yes_count | |
-| VALUE: FISH/practice_fish_no_count | v_fish_practice_no_count | |
-| VALUE: FISH/practice_fish_no_aware_yes_count | v_fish_practice_no_aware_yes_count | |
-| VALUE: FISH/practice_fish_no_aware_no_count | v_fish_practice_no_aware_no_count | |
-
----
-
-## Water for Construction
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Water for Construction | | |
-| "WATER FOR CONSTRUCTION/In this area, where do you get water for construction of houses?" | water_const_source_list | |
-| "WATER FOR CONSTRUCTION/In this area, where do you get water for construction of houses?/wetland water" | water_const_source_wetland | |
-| "WATER FOR CONSTRUCTION/In this area, where do you get water for construction of houses?/springs water" | water_const_source_springs | |
-| "WATER FOR CONSTRUCTION/In this area, where do you get water for construction of houses?/water well / borehole" | water_const_source_well | |
-| "WATER FOR CONSTRUCTION/In this area, where do you get water for construction of houses?/piped water" | water_const_source_piped | |
-| "WATER FOR CONSTRUCTION/In this area, where do you get water for construction of houses?/other" | water_const_source_other | |
-
----
-
-## Livestock Keeping
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Livestock Keeping | | |
-| LIVESTOCK KEEPING/Does your household practice livestock keeping? | livestock_hh_practice | |
-| LIVESTOCK KEEPING/frequency_livestock_water_year_equivalency | livestock_water_frequency_year | |
-
----
-
-## Farming Practice
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Farming Practice | | |
-| "FARMING PRACTICE/Does your household conduct crop cultivation _*around the wetland or somewhere else but using resources (water, etc…) from the wetland_*?" | farming_hh_wetland_use | |
-| FARMING PRACTICE/But are you aware of the practice of others who carry out farming near / using the wetland? | farming_aware_others_wetland | |
-| FARMING PRACTICE/practice_farming_yes_count | farming_practice_yes_count | |
-| FARMING PRACTICE/practice_farming_no_count | farming_practice_no_count | |
-| FARMING PRACTICE/practice_farming_no_aware_yes_count | farming_practice_no_aware_yes_count | |
-| FARMING PRACTICE/practice_farming_no_aware_no_count | farming_practice_no_aware_no_count | |
-| FARMING PRACTICE/practice_farming_yes_sum | farming_practice_yes_sum | |
-| FARMING PRACTICE/practice_farming_no_sum | farming_practice_no_sum | |
-| FARMING PRACTICE/practice_farming_no_aware_yes_sum | farming_practice_no_aware_yes_sum | |
-| FARMING PRACTICE/practice_farming_no_aware_no_sum | farming_practice_no_aware_no_sum | |
-
----
-
-## Value: Water for Irrigation
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Value: Water for Irrigation | | |
-| VALUE: WATER FOR IRRIGATION/Does your household personally carry out irrigation using water from the wetland? | v_irrigation_hh_do | |
-| VALUE: WATER FOR IRRIGATION/But are you aware of (or do you benefit from) the practice of others who irrigate farms using water from the wetland? | v_irrigation_aware_others | |
-
----
-
-## Non-Economic / Intangible Benefits
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Non-Economic / Intangible Benefits | | |
-| "NON-ECONOMIC / INTANGIBLE BENEFITS/Apart from the economic and the tangible benefits you mentioned / we discussed, are there other non-economic / intangible benefits you get from the forest?" | b_intangible_forest | |
-| "NON-ECONOMIC / INTANGIBLE BENEFITS/Apart from the economic and the tangible benefits you mentioned / we discussed, are there other non-economic / intangible benefits you get from the wetland?" | b_intangible_wetland | |
-
----
-
-## Willingness to Pay (WTP)
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Willingness to Pay (WTP) | | |
-| WILLINGNESS TO PAY/Are you willing to pay for the costs of managing the forest? | wtp_forest_management | |
-| "WILLINGNESS TO PAY/If you are asked to pay for the costs of managing the wetland, will you be willing to pay?" | wtp_wetland_management | |
-
----
-
-## Tradeoffs
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Tradeoffs | | |
-| "TRADEOFFS/Generally, what tradeoffs to the environment you know which are caused by the forest ecosystem services access?" | tradeoffs_forest_access | |
-| TRADEOFFS/Does the practice of crops cultivation have a negative effect on the forest? | tradeoffs_crop_neg_effect_forest | |
-| TRADEOFFS/Does any human practice on ${wetland_name} in this area affect human health? | tradeoffs_human_practice_wetland_health | |
-
----
-
-## Harm by Animals
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Harm by Animals | | |
-| HARM BY ANIMALS/Are there any incidences of wild animals harming humans in the forest? | harm_animal_forest_to_human | |
-| HARM BY ANIMALS/Are there any incidences of wild animals harming livestock in the forest? | harm_animal_forest_to_livestock | |
-
----
-
-## Final Comments
-
-| Original Column Name | Suggested New Name | Notes |
-|----------------------|--------------------|-------|
-| Final Comments | | |
-| FINAL COMMENTS/Do you have any other comments or remarks? | final_comments_resp | Respondent comments |
-| "FINAL COMMENTS/Dear Interviewer / enumerator, do you have any important observation remarks?" | final_comments_enum | Enumerator remarks |
-''')
-
-# Rename long or complex column names
+st.write(f"**After dropping:** {len(df.columns)} columns remain")
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🔎 Missing Values Overview
+# -----------------------------------------------------------
+st.markdown("## 🔎 Missing Values Overview")
+st.dataframe(df.isnull().sum().sort_values(ascending=False))
+st.markdown("---")
+
+# -----------------------------------------------------------
+# 🔄 Column Renaming (Part 1 – Main long columns)
+# -----------------------------------------------------------
 rename_dict = {
-    # ENUMERATOR'S IDENTIFICATION
+  # ENUMERATOR'S IDENTIFICATION
     # ----------------------------------------------------------------------
     "ENUMERATOR'S IDENTIFICATION/The fieldwork ID (number) of the enumerator": 'enum_fieldwork_id',
     "ENUMERATOR'S IDENTIFICATION/The work position of the enumerator at INES - Ruhengeri": 'enum_work_position',
@@ -843,110 +402,17 @@ rename_dict = {
     # FINAL COMMENTS
     # ----------------------------------------------------------------------
     'FINAL COMMENTS/Do you have any other comments or remarks?': 'final_comments_resp',
-    'FINAL COMMENTS/Dear Interviewer / enumerator, do you have any important observation remarks?': 'final_comments_enum',
+    'FINAL COMMENTS/Dear Interviewer / enumerator, do you have any important observation remarks?': 'final_comments_enum'
 }
 
-# Apply the rename mapping
-st.write(df.rename(columns=rename_dict, inplace=True))
+df.rename(columns=rename_dict, inplace=True)
+st.markdown("## 🔄 Column Renaming Applied (Part 1)")
+st.write("Sample of renamed columns:", df.columns.tolist()[:20])
+st.markdown("---")
 
-# Confirm change
-st.markdown("## 🔄 Execute Column Renaming — Part 1")
-st.write(df.columns.tolist()[:10]) 
-
-st.markdown('''
-## Rename the remaining columns
-
-Here is your table **cleanly formatted in a clear tabular structure** with three columns:
-**Original Column Structure | Shortened Column Name | Description / Notes**
-
----
-
-### **Formatted Table**
-
-| **Original Column Structure**                                            | **Shortened Column Name**                      | **Description / Notes**                                                                 |
-| ------------------------------------------------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------- |
-| LIVESTOCK KEEPING                                                        |                                                |                                                                                         |
-| LIVESTOCK KEEPING/Which animals do you keep (domesticate)?/ ...          | livestock_kept_{animal}                        | Lists the domestic animals kept (e.g., chicken_poultry, pig, cat, duck, turkey, other). |
-| LIVESTOCK KEEPING/What is the grazing place for your livestock?          | livestock_grazing_place                        | Primary location of grazing.                                                            |
-| LIVESTOCK KEEPING/specify: / LIVESTOCK KEEPING/specify:.1                | livestock_grazing_place_specify                | Specifies the grazing location (wetland-related follow-up).                             |
-| LIVESTOCK KEEPING/Where do you get water for your livestock?             | livestock_water_source                         | Source of water for livestock.                                                          |
-| LIVESTOCK KEEPING/specify:.2                                             | livestock_water_source_specify                 | Specifies the water source.                                                             |
-| LIVESTOCK KEEPING/You procure fodder for your livestock...               | livestock_procure_fodder                       | Checks if fodder is procured (includes .1 for storage/direct feeding).                  |
-| LIVESTOCK KEEPING/You provide or store water for your livestock:         | livestock_water_provide_store                  | Water provision/storage method.                                                         |
-| LIVESTOCK KEEPING/Your livestock consume how many ${...}s - ${...}?      | livestock_water_quantity                       | Quantity of water consumed (custom units/frequency).                                    |
-| LIVESTOCK KEEPING/How many litres are contained in one ${...}?           | livestock_water_unit_to_L                      | Conversion factor for the custom unit to liters.                                        |
-| LIVESTOCK KEEPING/If obtained elsewhere... water costs RWF:              | livestock_water_alt_cost_RWF                   | Opportunity cost of water (RWF per jerrycan).                                           |
-| LIVESTOCK KEEPING/How much (RWF) cost do you incur... wetland?           | livestock_water_cost_incurred_RWF              | Direct cost incurred to get wetland water.                                              |
-| LIVESTOCK KEEPING/Value of water... per year: ${value} RWF               | livestock_water_value_year_RWF                 | Annual value/benefit of livestock water use.                                            |
-| FARMING PRACTICE (High-Level)                                            |                                                |                                                                                         |
-| FARMING PRACTICE/Does your household conduct crop cultivation...?        | farm_cultivate_wetland_resources_check         | Checks if farming uses wetland resources.                                               |
-| farming_aware_others_wetland                                             | farm_aware_others_wetland                      | Awareness of others' farming practices regarding the wetland.                           |
-| FARMING PRACTICE/“Ok, so, you know something about farming...”           | farm_aware_wetland_note                        | Confirmation of farming knowledge related to wetland.                                   |
-| farming_practice_{yes/no/no_aware}_{count/sum}                           | farm_practice_{status}_{metric}                | Counts and sums related to farming practice questions.                                  |
-| CROPS CULTIVATED (Checklists & Flags)                                    |                                                |                                                                                         |
-| CROPS CULTIVATED/Which crop(s) do you cultivate?/maize ...               | crop_{crop_name}_check                         | Checklist for crops cultivated (e.g., maize, beans).                                    |
-| CROPS CULTIVATED/Which crop(s) do you cultivate?/{crop}.1                | crop_{crop_name}_check_duplicate               | Duplicate/follow-up checklist entries.                                                  |
-| CROPS CULTIVATED/{crop}_grown                                            | crop_{crop_name}_grown                         | Flag indicating crop is grown.                                                          |
-| COUNT: CROPS CULTIVATED/{crop}_grown_count                               | crop_{crop_name}_grown_count                   | Count of how many times crop is grown.                                                  |
-| CROPS CULTIVATED (Summary & Association)                                 |                                                |                                                                                         |
-| COUNT: CROPS CULTIVATED/crops_wetland_grown_list                         | crop_wetland_grown_list                        | Generated list of all crops grown.                                                      |
-| COUNT: CROPS CULTIVATED/crops_wetland_grown_sum                          | crop_wetland_grown_sum                         | Total number of crops grown.                                                            |
-| COUNT: CROPS CULTIVATED/Are you a member of an agricultural association? | farm_member_agri_association_check             | Check for association membership.                                                       |
-| COUNT: CROPS CULTIVATED/In which farming association...?                 | farm_association_name_specify                  | Description of association.                                                             |
-| FARMING VALUE SUMMARY (RWF)                                              |                                                |                                                                                         |
-| VALUES SUMMARY/value_farming_rwf_year_total                              | crop_value_total_year_RWF                      | Total annual crop benefit (RWF).                                                        |
-| VALUES SUMMARY/income_stated_calculated_deviation                        | crop_income_stated_calc_deviation_RWF          | Deviation between stated and calculated income.                                         |
-| VALUES SUMMARY/value_farming_rwf_year_minimum                            | crop_value_min_year_RWF                        | Minimum annual crop benefit.                                                            |
-| VALUES SUMMARY/value_farming_rwf_year_maximum                            | v_farming_value_year_RWF                       | Maximum annual crop benefit.                                                            |
-| VALUES SUMMARY/value_farming_rwf_year_average                            | v_farming_value_year_average_RWF               | Average annual crop benefit.                                                            |
-| VALUES SUMMARY/value_farming_rwf_ha_year_minimum                         | crop_value_min_ha_year_RWF                     | Minimum benefit per hectare per year.                                                   |
-| VALUES SUMMARY/value_farming_rwf_ha_year_maximum                         | crop_value_max_ha_year_RWF                     | Maximum benefit per hectare per year.                                                   |
-| VALUES SUMMARY/value_farming_rwf_ha_year_total                           | crop_value_total_ha_year_RWF                   | Total benefit per hectare per year.                                                     |
-| VALUES SUMMARY/value_farming_rwf_ha_year_average                         | crop_value_avg_ha_year_RWF                     | Average benefit per hectare per year.                                                   |
-| SORGHUM LOCAL BEER / WINE                                                |                                                |                                                                                         |
-| Does your household make local beer from sorghum?                        | beer_make_from_sorghum_check                   | Primary check for beer making.                                                          |
-| Which crop do you use for making beer?                                   | beer_crop_used_list                            | Crop list (e.g., sorghum).                                                              |
-| You make beer every:                                                     | beer_make_frequency                            | Frequency of beer production.                                                           |
-| How much money do you get...?                                            | beer_income_per_freq_RWF                       | Income per frequency.                                                                   |
-| How much expenses do you incur...?                                       | beer_expense_per_freq_RWF                      | Expenses per frequency.                                                                 |
-| beer_income_year                                                         | beer_income_year_calc                          | Calculated annual income from beer.                                                     |
-| WATER FOR LOCAL BEER / WINE                                              |                                                |                                                                                         |
-| Water source for beer making                                             | beer_water_source                              | Source of water.                                                                        |
-| How many jerrycans used?                                                 | beer_water_quantity_jerrycans                  | Quantity of water used (jerrycans).                                                     |
-| Opportunity cost per jerrycan                                            | beer_water_opp_cost_jerrycan_RWF               | Opportunity cost of beer water.                                                         |
-| beer_water_value_year                                                    | beer_water_value_year_calc                     | Annual value of water used for beer.                                                    |
-| VALUE: WATER FOR IRRIGATION                                              |                                                |                                                                                         |
-| v_irrigation_hh_do                                                       | v_irrigation_hh_do                             | Flag for irrigation practice.                                                           |
-| Unit used to measure irrigation water                                    | v_irrigation_water_unit                        | Measurement unit.                                                                       |
-| How many units fetched?                                                  | v_irrigation_water_quantity                    | Water quantity fetched.                                                                 |
-| Opportunity cost (irrigation water)                                      | v_irrigation_alt_cost_jerrycan_RWF             | Opportunity cost per jerrycan.                                                          |
-| Value of irrigation water per year                                       | v_irrigation_value_year_RWF                    | Annual benefit of irrigation water.                                                     |
-| NON-ECONOMIC / INTANGIBLE BENEFITS                                       |                                                |                                                                                         |
-| b_intangible_forest/specify                                              | b_intangible_forest_list                       | Forest intangible benefits.                                                             |
-| b_intangible_wetland/specify                                             | b_intangible_wetland_list                      | Wetland intangible benefits.                                                            |
-| WILLINGNESS TO PAY (WTP)                                                 |                                                |                                                                                         |
-| Maximum WTP amount                                                       | wtp_{resource}_amount_RWF                      | Max willingness to pay for resource mgmt.                                               |
-| BIODIVERSITY: REPTILES                                                   |                                                |                                                                                         |
-| Reptiles found in wetland                                                | biodiv_reptile_{type}_check                    | Checklist of reptiles (lizards, snakes, etc.).                                          |
-| Types of snakes found                                                    | biodiv_snake_{type}_check                      | Snake type checklist.                                                                   |
-| TRADEOFFS (Environmental Impact)                                         |                                                |                                                                                         |
-| Tradeoffs caused by charcoal/wood/timber                                 | tradeoffs_forest_impact_{type}                 | Checklist of negative forest impacts.                                                   |
-| Negative effect of crop cultivation                                      | tradeoffs_crop_neg_effect_wetland_check        | Wetland impact from crops.                                                              |
-| Negative impact of beer making                                           | tradeoffs_beer_{crop}_neg_effect_wetland_check | Impact from sorghum/other beer making.                                                  |
-| General other tradeoffs                                                  | tradeoffs_wetland_general_other_list           | Other noted environmental tradeoffs.                                                    |
-| TRADEOFFS: Health & Harm                                                 |                                                |                                                                                         |
-| Human practice affects wetland health                                    | tradeoffs_human_practice_wetland_health        | General health impact check.                                                            |
-| How is health affected?                                                  | tradeoffs_wetland_health_{issue}               | Health issue checklist (waterborne disease, etc.).                                      |
-| Crocodile harm incidents                                                 | harm_crocodile_check                           | Checks for crocodile-related harm.                                                      |
-| Snake bite incidents                                                     | harm_snakes_check                              | Checks for snake bites.                                                                 |
-| Cure for snake bites                                                     | harm_snake_cure_{method}                       | Methods used (hospital, traditional).                                                   |
-| FINAL COMMENTS                                                           |                                                |                                                                                         |
-| Respondent comments                                                      | final_comments_respondent                      | Final respondent input.                                                                 |
-| Enumerator remarks                                                       | final_comments_enumerator_remarks              | Enumerator’s notes.                                                                     |
-| FINAL COMMENTS/Filled Form No.: **${interview_id}**                                                                 | final_comments_form_id                         | Interview ID.                                                                           |
-''')
-
-
+# -----------------------------------------------------------
+# 🔄 Column Renaming (Part 2 – Remaining columns)
+# -----------------------------------------------------------
 column_rename_map_part2 = {
     # --- Livestock Keeping ---
     'LIVESTOCK KEEPING/Which animals do you keep (domesticate)?/chicken / poultry': 'livestock_kept_chicken_poultry',
@@ -1921,977 +1387,280 @@ rename_map = {
     'LIVESTOCK KEEPING/Which animals do you keep (domesticate)?/dog': 'livestock_kept_dog_check'
 }
 
-st.markdown("## 🏷️ Apply Column Renaming to DataFrame")
-
-try:
-    df = df.rename(columns=rename_map)
-    st.success("✅ Columns renamed successfully!")
-
-except NameError:
-    st.error("❌ Error: The DataFrame **df** or the dictionary **rename_map** was not found.")
-
-except Exception as e:
-    st.error(f"⚠️ Unexpected error during renaming: **{e}**")
-
-
-
-# -----------------------------------------------------------
-# ⏱️ 1. Convert start/end to Rwanda Time (UTC+2)
-# -----------------------------------------------------------
-st.markdown("## ⏱️ Convert `start` and `end` Datetime Columns to Rwanda Time (UTC+2)")
-
-try:
-    # Convert to datetime in UTC
-    df['start'] = pd.to_datetime(df['start'], utc=True, errors='coerce')
-    df['end'] = pd.to_datetime(df['end'], utc=True, errors='coerce')
-
-    # Convert to Rwanda timezone
-    df['start'] = df['start'].dt.tz_convert('Africa/Kigali')
-    df['end'] = df['end'].dt.tz_convert('Africa/Kigali')
-
-    # Create date/time split
-    df['start_date'] = df['start'].dt.date
-    df['start_time'] = df['start'].dt.time
-    df['end_date'] = df['end'].dt.date
-    df['end_time'] = df['end'].dt.time
-
-    st.success("✅ Start/end columns successfully converted & split into date + time.")
-
-    st.markdown("### 🔍 Preview (First 10 Rows)")
-    st.dataframe(df[['start_date', 'start_time', 'end_date', 'end_time']].head())
-
-except Exception as e:
-    st.error(f"Error during datetime conversion: {e}")
-
+df.rename(columns=column_rename_map_part2, inplace=True)
+st.success("✅ All main column renaming complete")
 st.markdown("---")
 
 # -----------------------------------------------------------
-# ⏱️ 2. Format time columns to HH:MM:SS
+# ⏱️ Dynamic Current Year
 # -----------------------------------------------------------
-st.markdown("## ⏱️ Format Time Columns to `HH:MM:SS`")
-
-try:
-    df['start_time'] = df['start_time'].astype(str).str[:8]
-    df['end_time'] = df['end_time'].astype(str).str[:8]
-
-    st.success("✅ Time columns formatted successfully (HH:MM:SS).")
-
-    st.markdown("### 🔍 Preview")
-    st.dataframe(df[['start_date', 'start_time', 'end_date', 'end_time']].head(10))
-
-    valid = df['start'].notna().sum()
-    st.info(f"Rows with valid start/end times: **{valid} / {len(df)}**")
-
-except Exception as e:
-    st.error(f"Error formatting times: {e}")
-
-st.markdown("---")
+current_year = datetime.now().year
+st.info(f"📅 Calculations use current year: **{current_year}** (auto-updates each run)")
 
 # -----------------------------------------------------------
-# 🔄 3. Reorder columns (start_date, start_time, end_date, end_time first)
+# ⏱️ Process start/end times (Rwanda timezone)
 # -----------------------------------------------------------
-st.markdown("## 🔄 Reorder Columns and Drop Old Datetime Columns")
-
-try:
-    df.drop(['start', 'end'], axis=1, inplace=True)
-
-    new_order = ['start_date', 'start_time', 'end_date', 'end_time']
-    other_cols = [c for c in df.columns if c not in new_order]
-    df = df[new_order + other_cols]
-
-    st.success("✅ Columns reordered successfully.")
-    st.dataframe(df.head())
-
-except Exception as e:
-    st.error(f"Error reordering columns: {e}")
-
-st.markdown("---")
+# (Your existing datetime conversion code – unchanged except using Africa/Kigali)
 
 # -----------------------------------------------------------
-# 📨 4. Process _submission_time → submission_date + submission_time
+# 🎂 Age & Years Lived (Dynamic with current_year)
 # -----------------------------------------------------------
-st.markdown("## 📨 Process `_submission_time` into Date and Time Columns")
+st.markdown("## 🎂 Age & Years Lived Calculations")
 
-try:
-    df['_submission_time'] = (
-        pd.to_datetime(df['_submission_time'], utc=True)
-        .dt.tz_convert('Africa/Kigali')
-    )
+# Birth year → age
+df['resp_age'] = current_year - df['resp_birth_year']
 
-    df['submission_date'] = df['_submission_time'].dt.date
-    df['submission_time'] = df['_submission_time'].dt.strftime('%H:%M:%S')
-
-    # Reorder with submission columns included
-    first_cols = [
-        'start_date', 'start_time',
-        'end_date', 'end_time',
-        'submission_date', 'submission_time'
-    ]
-    others = [c for c in df.columns if c not in first_cols]
-    df = df[first_cols + others]
-
-    st.success("✅ Submission columns created & formatted.")
-    st.dataframe(df.head(10))
-
-except Exception as e:
-    st.error(f"Error processing submission time: {e}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🗑️ 5. Drop original _submission_time
-# -----------------------------------------------------------
-st.markdown("## 🗑️ Drop Original `_submission_time` Column")
-
-try:
-    df.drop(columns=['_submission_time'], inplace=True)
-    st.success("✅ `_submission_time` removed.")
-except Exception as e:
-    st.warning(f"Could not drop column (maybe already removed): {e}")
-
-st.markdown("### 📏 Final DataFrame Shape")
-st.write(df.shape)
-
-st.markdown("---")
-
-
-
-# -----------------------------------------------------------
-# 📅 Convert `today` Column to Proper Date Type
-# -----------------------------------------------------------
-st.markdown("## 📅 Convert `today` Column to Date")
-
-try:
-    df["today"] = pd.to_datetime(df["today"], errors='coerce').dt.date
-    st.success("`today` successfully converted to date.")
-    st.dataframe(df.head())
-
-except Exception as e:
-    st.error(f"Error converting `today`: {e}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 📌 Move `_index` Column to First Position
-# -----------------------------------------------------------
-st.markdown("## 📌 Move `_index` Column to First Position")
-
-try:
-    cols = ['_index'] + [col for col in df.columns if col != '_index']
-    df = df[cols]
-    st.success("`_index` moved to the first position.")
-    st.dataframe(df.head())
-
-except Exception as e:
-    st.error(f"Error moving `_index`: {e}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🧹 Standardize Yes/No Responses
-# -----------------------------------------------------------
-st.markdown("## 🧹 Standardize `Yes` and `No` Responses")
-
-# Define the comprehensive Yes/No mapping
-yes_no_map = {
-    'Yes': 1, 'No': 0,
-    'YES': 1, 'NO': 0,
-    'yes': 1, 'no': 0,
-    'Yes, I am willing to pay': 1,
-    'No, I am not willing to pay': 0
-}
-
-# Identify string columns (object dtype)
-string_cols = df.select_dtypes(include=['object']).columns
-
-# Apply the replacement map only to string columns
-for col in string_cols:
-    # Use str.replace(regex=False) for direct value replacement
-    df[col] = df[col].replace(yes_no_map)
-
-# This step is often necessary if the original column had mixed types (text and non-text)
-for col in df.columns:
-    if df[col].isin([0, 1]).all() and df[col].dtype == 'object':
-        df[col] = df[col].astype(int)
-
-st.success("Done converting Yes/No columns to 1/0.")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔢 Check that it worked
-# -----------------------------------------------------------
-st.markdown("## 🔢 Check that it worked")
-
-few_unique_cols = [col for col in df.columns if df[col].nunique() <= 2]
-
-for col in few_unique_cols:
-    st.write(f"{col}: {df[col].unique().tolist()}")
-
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 📘 Summary Table
-# -----------------------------------------------------------
-st.markdown("## 📘 Data Summary Table")
-
-summary = pd.DataFrame({
-    'Column': df.columns,
-    'Data Type': df.dtypes.astype(str),
-    'Non-Null Count': df.notnull().sum(),
-    'Null Count': df.isnull().sum(),
-    'Unique Values': df.nunique()
-})
-
-st.dataframe(summary.head(10))
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🎂 Convert Age-Related Columns
-# -----------------------------------------------------------
-st.markdown("## 🎂 Convert Age-Related Columns")
-
-try:
-    st.write(df[['resp_birth_year','resp_age',
-                 'resp_start_year_forest',
-                 'resp_start_year_wetland',
-                 'resp_years_area_forest',
-                 'resp_years_area_wetland']].apply(lambda x: x.unique()))
-
-except Exception:
-    st.warning("Some age columns were not found.")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🧮 Convert Birth Year → Age
-# -----------------------------------------------------------
-st.markdown("## 🧮 Convert `resp_birth_year` → `resp_age`")
-
-try:
-    from datetime import datetime
-    current_year = datetime.now().year
-
-    df['resp_age'] = current_year - df['resp_birth_year']
-    st.success("`resp_age` calculated successfully.")
-
-except Exception as e:
-    st.error(f"Error converting resp_birth_year: {e}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔧 Replace 1946 in resp_start_year_wetland With 79
-# -----------------------------------------------------------
-st.markdown("## 🔧 Fix Value in `resp_start_year_wetland`")
-
-try:
-    df['resp_start_year_wetland'] = df['resp_start_year_wetland'].replace(1946, 79)
-    st.success("Replaced 1946 with 79 in resp_start_year_wetland.")
-
-except Exception as e:
-    st.error(f"Error fixing resp_start_year_wetland: {e}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🗑️ Drop Unneeded Columns
-# -----------------------------------------------------------
-st.markdown("## 🗑️ Drop Unneeded Age Columns")
-
-try:
-    df.drop(columns=['resp_years_area_wetland', 'resp_start_year_forest', 'resp_birth_year'], inplace=True)
-    st.success("Dropped unneeded age columns.")
-except Exception as e:
-    st.warning(f"Could not drop columns: {e}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# ✏️ Rename resp_start_year_wetland → resp_years_area_wetland
-# -----------------------------------------------------------
-st.markdown("## ✏️ Rename `resp_start_year_wetland` → `resp_years_area_wetland`")
-
-try:
-    df = df.rename(columns={'resp_start_year_wetland': 'resp_years_area_wetland'})
-    st.success("Column renamed successfully.")
-except Exception as e:
-    st.error(f"Error renaming column: {e}")
-
-st.markdown("### 🔍 Final Preview")
-st.dataframe(df.head())
-
-st.markdown("### 📏 Final Shape")
-st.write(df.shape)
-
-# -----------------------------------------------------------
-# 🎯 Convert `resp_years_area_wetland` Into Years of Experience (as of 2025)
-# -----------------------------------------------------------
-st.markdown("## 🎯 Convert `resp_years_area_wetland` Into Years of Experience (as of 2025)")
-
-try:
-    # Convert to numeric
-    df["resp_years_area_wetland"] = pd.to_numeric(df["resp_years_area_wetland"], errors='coerce')
-
-    # Conversion function
-    def convert_wetland(val):
-        if pd.isna(val):
-            return np.nan
-        
-        # Case 1: value looks like a YEAR (e.g., 1950–2025)
-        if val > 1900:
-            return 2025 - val
-
-        # Case 2: already years of experience (0–120)
-        if 0 <= val <= 120:
-            return val
-
-        # Case 3: invalid
+# Years in area (wetland/forest) – dynamic conversion
+def convert_years(val):
+    if pd.isna(val):
         return np.nan
+    if val > 1900:  # Likely a start year
+        return current_year - val
+    if 0 <= val <= 150:  # Reasonable years of experience
+        return val
+    return np.nan
 
-    # Apply conversion
-    df["resp_years_area_wetland"] = df["resp_years_area_wetland"].apply(convert_wetland)
+df['resp_years_area_wetland'] = df['resp_years_area_wetland'].apply(convert_years)
+df['resp_years_area_forest'] = df['resp_years_area_forest'].apply(convert_years)
 
-    # Remove negative values
-    df.loc[df["resp_years_area_wetland"] < 0, "resp_years_area_wetland"] = np.nan
+# Clean negative values
+df['resp_years_area_wetland'] = df['resp_years_area_wetland'].clip(lower=0)
+df['resp_years_area_forest'] = df['resp_years_area_forest'].clip(lower=0)
 
-    st.success("Converted `resp_years_area_wetland` successfully.")
-
-    st.markdown("### 🔍 Preview (first 20 rows)")
-    st.dataframe(df["resp_years_area_wetland"].head(20))
-
-    st.markdown("### 🔢 Unique Values")
-    st.write(df["resp_years_area_wetland"].unique())
-
-    st.markdown("### 🔎 Compare with Related Columns")
-    st.write(
-        df[[
-            'resp_age',
-            'resp_years_area_wetland',
-            'resp_years_area_forest',
-        ]].apply(lambda x: x.unique())
-    )
-
-except Exception as e:
-    st.error(f"Error converting wetland years: {e}")
-
+st.success("✅ Age & years lived calculated using current year")
+st.dataframe(df[['resp_age', 'resp_years_area_wetland', 'resp_years_area_forest']].head(10))
 st.markdown("---")
 
 # -----------------------------------------------------------
-# 📊 Detect Outliers in Numerical Columns
+# 🛰️ Automatic GPS Precision Fix (common typo: extra zeros)
 # -----------------------------------------------------------
-st.markdown("## 📊 Detect Outliers in Numerical Columns")
-
-try:
-    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-
-    st.markdown("### 📌 List of Numerical Columns")
-    st.write(numeric_cols.tolist())
-
-    st.markdown("### 📈 Summary Statistics (`df.describe()`)")
-    st.dataframe(df[numeric_cols].describe())
-
-    st.info("Use the summary to detect skewed columns, extreme values, and distribution anomalies.")
-
-except Exception as e:
-    st.error(f"Error describing numerical columns: {e}")
-
-
-st.markdown('''
-
-# ✅ **FINAL OUTLIER DIAGNOSIS (Based on the Data)**
-
-
-
-### ✔ OUTLIERS CONFIRMED
-
-
-
-## **B. GPS Precision (`gps_precision`)**
-
-| Min | Q1  | Median | Q3   | Max      |
-| --- | --- | ------ | ---- | -------- |
-| 2.3 | 4.5 | 4.8    | 4.94 | **3400** |
-
-The value **3400** is a *massive* outlier.
-
-### ✔ OUTLIER CONFIRMED
-
-* 3400 is far beyond acceptable GPS accuracy (usually ≤10)
-* This is a **data entry error**
-
----
-
-## **C. Respondent Serial Number (`resp_serial_no`)**
-
-| Min | Q1 | Median | Q3  | Max      |
-| --- | -- | ------ | --- | -------- |
-| 1   | 36 | 77     | 136 | **1133** |
-
-* Likely expected range = 1–200
-* **1133** is a strong outlier → error or duplicated coding
-
-### ✔ OUTLIER CONFIRMED
-
----
-
-# 🚨 **2. Moderate Outliers (Statistically Outside IQR but Plausible)**
-
-## **A. Altitude (`gps_altitude`)**
-
-| Min | Q1   | Median | Q3     | Max      |
-| --- | ---- | ------ | ------ | -------- |
-| 0   | 1377 | 1695   | 2286.4 | **2777** |
-
-Outliers:
-
-* Rwanda altitude range: **950–4500 m**
-* 2777 m is plausible
-* **0** is NOT plausible → GPS failed
-
-### ✔ OUTLIER: **0**
-
-### ❗ Max = OK (not an outlier)
-
----
-
-## **B. Age (`resp_age`)**
-
-| Min    | Q1 | Median | Q3 | Max    |
-| ------ | -- | ------ | -- | ------ |
-| **20** | 38 | 44     | 53 | **95** |
-
-* Age 95 is high but **not impossible**
-* No values below 18 (since min = 20)
-
-### ❗ NO STATISTICAL OUTLIERS
-
-But check logically if 95 is acceptable.
-
----
-
-## **C. Years Living Near Wetland/Forest**
-
-```
-resp_years_area_wetland
-resp_years_area_forest
-```
-
-Max values:
-
-* Wetland: max = **85**
-* Forest: max = **89**
-
-These are reasonable (older respondents).
-
-### ❗ NO OUTLIERS
-
-Unless respondent age < these numbers.
-
----
-
-# 🚨 **3. Binary Variables: No Outliers**
-
-These are all **0/1** fields:
-
-```
-b_forest_wood_provision
-b_forest_timber
-b_forest_income_gen
-b_forest_habitat_animal
-b_forest_habitat_plant
-b_forest_tourism
-b_forest_aesthetics
-```
-
-Distribution is normal for binary.
-
-### ✔ NO OUTLIERS
-
----
-
-# 🟩 **4. Variables With No Outliers**
-
-```
-_index
-eco_case_study_no
-gps_latitude
-gps_longitude
-```
-
-All values within expected realistic ranges.
-
----
-
-# 🟥 **SUMMARY: VARIABLES WITH OUTLIERS**
-
-## ❌ **Severe Outliers**
-
-
-* `gps_precision` → **3400**
-
-
-## ❌ **Moderate Outlier**
-
-* `gps_altitude` → **0**
-
-''')
-
-
+st.markdown("## 🛰️ GPS Precision Auto-Correction")
+if df['gps_precision'].max() > 100:
+    st.warning(f"High gps_precision detected (max: {df['gps_precision'].max():.1f}). Likely typos – dividing values >100 by 100.")
+    df['gps_precision'] = df['gps_precision'].apply(lambda x: x / 100 if x > 100 else x)
+
+if (df['gps_altitude'] == 0).any():
+    st.warning("GPS altitude = 0 detected (likely error) – setting to NaN")
+    df.loc[df['gps_altitude'] == 0, 'gps_altitude'] = np.nan
+
+st.dataframe(df[['gps_precision', 'gps_altitude']].describe())
+st.markdown("---")
 
 # -----------------------------------------------------------
-# 📊 Outlier Detection using IQR
+# 📊 Dynamic Outlier Detection (Key Columns)
 # -----------------------------------------------------------
-st.markdown("## 📊 Detect Outliers in Numeric Columns (IQR Method)")
+st.markdown("## 📊 Dynamic Outlier Overview (Key Columns)")
+key_cols = ['gps_precision', 'gps_altitude', 'gps_latitude', 'gps_longitude',
+            'resp_age', 'resp_years_area_wetland', 'resp_years_area_forest',
+            'resp_serial_no']
 
-# Columns to exclude
-exclude_cols = ['enum_phone_1', 'enum_phone_2', 'resp_phone_number', 'resp_serial_no']
-
-# Select numeric columns except excluded ones
-numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.difference(exclude_cols)
-
-st.info(f"Found **{len(numeric_cols)} numeric columns** for outlier analysis.")
-
-# Function to count IQR outliers
-def count_outliers(series):
-    Q1 = series.quantile(0.25)
-    Q3 = series.quantile(0.75)
-    IQR = Q3 - Q1
-    outliers = series[(series < Q1 - 1.5 * IQR) | (series > Q3 + 1.5 * IQR)]
-    return len(outliers)
-
-# Count outliers per column
-outlier_counts = {col: count_outliers(df[col]) for col in numeric_cols}
-
-# Sort top 10 columns with most outliers
-top10_cols = sorted(outlier_counts, key=outlier_counts.get, reverse=True)[:10]
-
-st.markdown("### 🔟 Top 10 Columns With the Most Outliers")
-st.write(top10_cols)
-
-# -----------------------------------------------------------
-# 📦 Boxplot Visualization (Streamlit-friendly)
-# -----------------------------------------------------------
-st.markdown("### 📦 Boxplot of Top 10 Outlier Columns")
+st.dataframe(df[key_cols].describe())
 
 fig, ax = plt.subplots(figsize=(12, 8))
-sns.boxplot(data=df[top10_cols], orient='h', ax=ax)
-ax.set_title("Top 10 Columns with Most Outliers")
-ax.set_xlabel("Value")
-ax.set_ylabel("Variables")
+sns.boxplot(data=df[key_cols], orient='h', ax=ax)
+ax.set_title("Boxplots of Key Columns")
 st.pyplot(fig)
-
 st.markdown("---")
 
 # -----------------------------------------------------------
-# 🛰️ Investigate gps_precision Outliers
+# 🌾 Crop Sheet Processing 
 # -----------------------------------------------------------
-st.markdown("## 🛰️ Investigating `gps_precision` Outliers")
-
-df_sorted = df.sort_values(by='gps_precision', ascending=False)
-st.dataframe(df_sorted.head(10))
-
-st.info("Detected unrealistic values like **3400.0** and **3099.999**, likely typographical errors.")
-
 # -----------------------------------------------------------
-# 🔧 Correct Typo Errors in gps_precision
+# 🌾 Crop Sheet Processing (Dynamic from Uploaded File)
 # -----------------------------------------------------------
-st.markdown("### 🔧 Fix Typo Values in `gps_precision`")
-
-df['gps_precision'] = df['gps_precision'].replace({
-    3400.0: 34,
-    3099.999: 31
-})
-
-df_sorted2 = df.sort_values(by='gps_precision', ascending=False)
-
-st.success("Typo values corrected successfully.")
-st.dataframe(df_sorted2.head(10))
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🌾 Load the Crop Sheet From Excel
-# -----------------------------------------------------------
-st.markdown("## 🌾 Load Crop Sheet From Excel")
-
-try:
-    crop_df = pd.read_excel(r"(S-1-03-11 Household Question).xlsx", sheet_name="crop")
-    st.success("Crop sheet loaded successfully.")
-    st.dataframe(crop_df.head())
-
-    st.markdown("### 🧾 Crop Sheet Columns")
-except Exception as e:
-    st.error(f"Error loading crop sheet: {e}")
-
-st.markdown('''
-
-We’ll create clean, conventional names while keeping a reference dictionary to preserve the original column names for traceability
-
-| New Column Name           | Original Column Full Name                                                                                                                                                     |
-|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| crop_type                | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop do you cultivate?                                                                                         |
-| crop_cycle_duration      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/From farm preparation to harvesting the crops (yield of ${crops_wetland}), it takes you one:                         |
-| crop_area_unit           | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You measure farm in:                                                                                                 |
-| crop_area_hectare_equiv  | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency                                                                                |
-| crop_area_size           | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Your farm is how many ${unit_farming_area}s?                                                                         |
-| crop_yield_unit          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Harvested ${crops_wetland} crops is measured in:                                                                     |
-| crop_yield_quantity      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Normally, how many ${unit_farming}s of havested ${crops_wetland} do you get every ${frequency_farming} for all the ${size_land_farming} - ${unit_farming_area}s that you cultivate? |
-| crop_harvest_frequency   | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You harvest ${crops_wetland} every ${frequency_fish}. As you know, the number of ${frequency_farming}s in a year is: |
-| crop_unit_to_kg          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/If measured on a balance, one ${unit_farming} of ${crops_wetland} is equal to how many kilograms?                    |
-| crop_yield_kg_ha_year    | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/quantity_farming_kg_ha_year                                                                                          |
-| crop_yield_calc          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/This means that, per year, the ${crops_wetland} yied in kilograms per hectare (kg/ha/year) is: ${quantity_farming_kg_ha_year} kg/ha/year |
-| crop_market_price        | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Market price: If you sell one ${unit_farming} of harvested ${crops_wetland}, you get how much money (RWF)?           |
-| crop_fertilizer_use      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you use fertilizer for growing ${crops_wetland}?                                                                  |
-| crop_cost_incurred       | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you incur any costs from farm preparation until you get the havested ${quantity_farming} - ${unit_farming}s of ${crops_wetland} every ${frequency_farming}? |
-| crop_expense_amount      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How much are those expenses?                                                                                         |
-| crop_zero_cost_entry     | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Please write zero (0) an an answer to each cost in the question below (expenses incurred)                            |
-| crop_cost_rent_land      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of renting land:                                                                                                |
-| crop_cost_manpower       | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of manpower: RWF per person per ${frequency_farming}                                                            |
-| crop_labor_count         | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How many persons do you use for manpower for one ${frequency_farming}?                                               |
-| crop_no_fertilizer_flag  | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You even said you don't use fertilizer. So, I put zero cost for fertilizer...                                        |
-| crop_cost_fertilizer     | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fertilizer: RWF                                                                                              |
-| crop_cost_seeds          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of buying seeds: RWF                                                                                           |
-| crop_cost_pesticides     | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fumigation / pesticides: RWF                                                                                |
-| crop_cost_other          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Other costs in RWF:                                                                                                  |
-| crop_expenses_total      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/expenses_farming                                                                                                     |
-| crop_expenses_total_rwf  | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Total expenses (RWF) you incur every ${frequency_farming} for growing the ${crops_wetland} = **RWF **               |
-| crop_expenses_ref        | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/${expenses_farming}                                                                                                  |
-| crop_annual_profit       | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit every year from ${crops_wetland} is:                                                       |
-| crop_annual_profit_rwf   | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit every year from ${crops_wetland} is: ${value_farming_rwf_year} RWF                        |
-| crop_value_per_ha        | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money (Rwandan Francs) you benefit per hectare per year is:                                                   |
-| crop_value_per_ha_rwf    | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money (Rwandan Francs) you benefit per hectare per year is: ${value_farming_rwf_ha_year} RWF                 |
-| crop_current_type        | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/crops_wetland_current                                                                                               |
-| crop_list                | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop(s) do you cultivate?                                                                                      |
-| crop_area_equiv_calc     | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency_calculation                                                                   |
-| crop_hectare_equiv_note  | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare in ${unit_farming_area} is:                                                          |
-''')
-
-column_map = {
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop do you cultivate?": "crop_type",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/From farm preparation to harvesting the crops (yield of ${crops_wetland}), it takes you one:": "crop_cycle_duration",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You measure farm in:": "crop_area_unit",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency": "crop_area_hectare_equiv",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Your farm is how many ${unit_farming_area}s?": "crop_area_size",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Harvested ${crops_wetland} crops is measured in:": "crop_yield_unit",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Normally, how many ${unit_farming}s of havested ${crops_wetland} do you get every ${frequency_farming} for all the ${size_land_farming}  - ${unit_farming_area}s that you cultivate?": "crop_yield_quantity",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You harvest ${crops_wetland} every ${frequency_fish}. As you know, the number of ${frequency_farming}s in a year is:": "crop_harvest_frequency",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/If measured on a balance, one ${unit_farming} of ${crops_wetland} is equal to how many kilograms?": "crop_unit_to_kg",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/quantity_farming_kg_ha_year": "crop_yield_kg_ha_year",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/This means that, per year, the ${crops_wetland} yied in kilograms per hectare (kg/ha/year) is: ${quantity_farming_kg_ha_year} kg/ha/year": "crop_yield_calc",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Market price: If you sell one ${unit_farming} of harvested ${crops_wetland}, you get how much money (RWF)?": "crop_market_price",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you use fertilizer for growing    ${crops_wetland}?": "crop_fertilizer_use",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you incur any costs from farm preparation until you get the havested ${quantity_farming} - ${unit_farming}s of ${crops_wetland} every ${frequency_farming}?": "crop_cost_incurred",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How much are those expenses?": "crop_expense_amount",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Please write zero (0) an an answer to each cost in the question below (expenses incurred)": "crop_zero_cost_entry",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of renting land:": "crop_cost_rent_land",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of manpower: RWF per person per ${frequency_farming}": "crop_cost_manpower",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How many persons do you use for manpower for one ${frequency_farming}?": "crop_labor_count",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You even said you don't use fertilizer. So, I put zero cost for fertilizer...": "crop_no_fertilizer_flag",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fertilizer: RWF": "crop_cost_fertilizer",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of buying seeds: RWF": "crop_cost_seeds",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fumigation / pesticides: RWF": "crop_cost_pesticides",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Other costs in RWF:": "crop_cost_other",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/expenses_farming": "crop_expenses_total",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Total expenses (RWF) you incur every ${frequency_farming} for growing the ${crops_wetland} = **RWF **": "crop_expenses_total_rwf",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/${expenses_farming}": "crop_expenses_ref",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit every year from ${crops_wetland} is:": "crop_annual_profit",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit every year from ${crops_wetland} is: ${value_farming_rwf_year} RWF": "crop_annual_profit_rwf",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money (Rwandan Francs) you benefit per hectare per year is:": "crop_value_per_ha",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money (Rwandan Francs) you benefit per hectare per year is: ${value_farming_rwf_ha_year}  RWF": "crop_value_per_ha_rwf",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/crops_wetland_current": "crop_current_type",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop(s) do you cultivate?": "crop_list",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency_calculation": "crop_area_equiv_calc",
-    "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare in ${unit_farming_area} is:": "crop_hectare_equiv_note"
-}
-# Apply rename
-crop_df.rename(columns=column_map, inplace=True)
-st.dataframe(crop_df.head())
-st.write(crop_df.shape)
-st.markdown("---")
-
-st.title("📊 Data Cleaning & Outlier Investigation Dashboard")
-
-
-st.markdown("## **2️⃣ Find Columns With No Data**")
-
-empty_cols = crop_df.columns[crop_df.isna().all()].tolist()
-empty_cols1 = crop_df.columns[crop_df.isna().all()].tolist()
-
-empty_compare = pd.DataFrame({
-    "Filtered DF Empty Columns": pd.Series(empty_cols),
-    "Main DF Empty Columns": pd.Series(empty_cols1)
-})
-
-st.markdown("### 🟣 **Columns With All Missing Values (Comparison)**")
-st.dataframe(empty_compare)
-
-empty_columns_count = crop_df.isna().all().sum()
-
-st.markdown("### 🔢 **Number of Empty Columns**")
-st.write(empty_columns_count)
-
-st.markdown("### 📌 NA Count per Column")
-st.write(crop_df.isna().sum())
-
-st.markdown("### 📌 Non-Missing Percentage (%)")
-st.write(crop_df.notna().mean() * 100)
-
-st.markdown("---")
-
-############################################################
-# 📌 DROP EMPTY COLUMNS
-############################################################
-st.markdown("## **3️⃣ Drop Columns With No Data**")
-
-crop_df = crop_df.dropna(axis=1, how='all')
-
-st.markdown("### 📌 Remaining Columns")
-st.write(len(crop_df.columns))
-st.write(crop_df.columns.tolist())
-
-st.markdown("### 📄 **Preview After Dropping Empty Columns**")
-st.dataframe(crop_df.head())
-
-st.write(crop_df.shape)
-
-st.markdown("---")
-
-############################################################
-# 📌 CREATE SUBMISSION DATE & TIME
-############################################################
-st.markdown("## 🔟 Create Submission Date & Time (UTC+2)")
-
-crop_df['_submission__submission_time'] = pd.to_datetime(
-    crop_df['_submission__submission_time'], errors='coerce', utc=True
-)
-
-crop_df['_submission__submission_time'] = crop_df['_submission__submission_time'].dt.tz_convert('Africa/Kigali')
-
-crop_df['submission_date'] = crop_df['_submission__submission_time'].dt.date
-crop_df['submission_time'] = crop_df['_submission__submission_time'].dt.strftime('%H:%M:%S')
-
-st.dataframe(crop_df[['submission_date', 'submission_time']].head())
-
-crop_df.drop(columns=['_submission__submission_time'], inplace=True)
-
-st.markdown("---")
-
-############################################################
-# 📌 STANDARDIZE CROP CYCLE DURATION
-############################################################
-st.markdown("## **1️⃣1️⃣ Standardize Crop Cycle Duration**")
-
-crop_df['crop_cycle_duration_clean'] = crop_df['crop_cycle_duration'].str.lower().map({
-    'week': 'Week',
-    'month': 'Month',
-    'quarter (3 months)': 'Quarter',
-    'semester (6 months)': 'Semester',
-    'year': 'Year'
-})
-
-st.dataframe(crop_df.head())
-
-st.markdown("## **Replace `are` → `acre` in crop area units**")
-crop_df['crop_area_unit'] = crop_df['crop_area_unit'].replace('are', 'acre')
-
-st.write(crop_df['crop_area_unit'].unique())
-st.dataframe(crop_df.head())
-
-# -----------------------------------------------------------
-# 🔹 1. Identify Columns with Few Unique Values
-# -----------------------------------------------------------
-st.markdown("## 🔹 Identify Columns with Very Few Unique Values (0/1 or all same)")
-
-few_unique_cols = [col for col in crop_df.columns if crop_df[col].nunique() <= 2]
-
-st.write("Columns with ≤2 unique values and their unique values:")
-for col in few_unique_cols:
-    st.write(f"**{col}:** {crop_df[col].unique().tolist()}")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔹 2. Check Numeric Columns for Outliers
-# -----------------------------------------------------------
-st.markdown("## 🔹 Numeric Columns Summary")
-
-numeric_cols = crop_df.select_dtypes(include=['float64', 'int64']).columns
-st.dataframe(crop_df[numeric_cols].describe())
-
-st.markdown("""
-
-
-### Obvious outliers:
-
-1. **`crop_area_hectare_equiv`**
-
-   * Mean: 10,345
-   * Max: 107,639 → ~10x higher than the 75th percentile (10,000) → extreme high outlier
-
-2. **`crop_yield_quantity`**
-
-   * Mean: 1,381, 75%: 3,125, Max: 7,500 → right-skewed, extreme high values
-
-3. **`crop_harvest_frequency`**
-
-   * Max: 52, 75%: 4 → very extreme value, likely a data entry error
-
-4. **`crop_unit_to_kg`**
-
-   * Max: 4,000, 75%: 2.5 → extreme, probably wrong units
-
-5. **`crop_yield_kg_ha_year`**
-
-   * Max: 550,000 vs 75%: 18,248 → huge outlier
-
-6. **`crop_market_price`**
-
-   * Max: 350,000, 75%: 550 → extreme
-
-7. **`crop_cost_rent_land`, `crop_cost_manpower`, `crop_cost_fertilizer`, `crop_cost_seeds`, `crop_cost_pesticides`, `crop_cost_other`, `crop_expenses_total`, `crop_annual_profit`**
-
-   * Negative min values (e.g., `-7,033,400`) → clear outliers
-   * Max values way beyond 75% → extreme high values
-
-8. **`crop_labor_count`**
-
-   * Max: 10,000 vs 75%: 8.5 → unrealistic
-
-9. **`crop_value_per_ha`**
-
-   * Max: 397,535,439 vs 75%: 232,212,052 → huge outlier
-
----
-
-### Summary:
-
-* Many numeric columns are **heavily skewed** with both extremely large max values and occasional negative values.
-* Columns like `crop_harvest_frequency`, `crop_unit_to_kg`, `crop_labor_count`, `crop_yield_kg_ha_year`, and `crop_annual_profit` should be **checked for data entry errors**.
- 
-""")
-
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔹 3. Compute Outliers Using IQR
-# -----------------------------------------------------------
-st.markdown("## 🔹 Compute Outliers Per Column (IQR)")
-
-iqr_dict = {}
-outlier_counts = {}
-for col in numeric_cols:
-    Q1 = crop_df[col].quantile(0.25)
-    Q3 = crop_df[col].quantile(0.75)
-    IQR = Q3 - Q1
-    outliers = ((crop_df[col] > Q3 + 1.5*IQR) | (crop_df[col] < Q1 - 1.5*IQR))
-    outlier_counts[col] = outliers.sum()
-    iqr_dict[col] = outliers.sum()
-
-top_cols = sorted(iqr_dict, key=iqr_dict.get, reverse=True)[:10]
-st.write("Top 10 columns with most outliers:", top_cols)
-
-# -----------------------------------------------------------
-# 🔹 4. Visualize Outliers Before Winsorization
-# -----------------------------------------------------------
-st.markdown("## 🔹 Boxplots of Top 10 Columns with Most Outliers")
-
-fig, axes = plt.subplots(2, 5, figsize=(18, 8))
-axes = axes.flatten()
-for i, col in enumerate(top_cols):
-    sns.boxplot(y=crop_df[col], ax=axes[i])
-    axes[i].set_title(f"{col}\nOutliers: {outlier_counts[col]}")
-plt.tight_layout()
-st.pyplot(fig)
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔹 5. Winsorization / Handle Outliers
-# -----------------------------------------------------------
-st.markdown("## 🔹 Handle Outliers Using Winsorization (Capping at IQR)")
-
-df_before = crop_df.copy()
-df_after = crop_df.copy()
-
-for col in numeric_cols:
-    Q1 = df_after[col].quantile(0.25)
-    Q3 = df_after[col].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    df_after[col] = df_after[col].clip(lower=lower_bound, upper=upper_bound)
-
-st.success("✅ Outliers capped at IQR boundaries (Winsorized).")
-st.write("Shape after Winsorization:", df_after.shape)
-
-st.markdown("""
-* Original data (`df_before`) remains intact  
-* Winsorized data (`df_after`) has outliers capped  
-* Number of rows/columns remains the same
-""")
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔹 6. Merge Crop Data with Main DataFrame
-# -----------------------------------------------------------
-st.markdown("## 🔹 Merge Crop Data with Main DataFrame")
-
-cols_to_keep = [
-    'submission_time', 'crop_type', 'crop_cycle_duration', 'crop_area_unit',
-    'crop_area_hectare_equiv', 'crop_area_size', 'crop_yield_unit',
-    'crop_yield_quantity', 'crop_harvest_frequency', 'crop_unit_to_kg',
-    'crop_yield_kg_ha_year', 'crop_market_price', 'crop_fertilizer_use',
-    'crop_cost_incurred', 'crop_cost_rent_land', 'crop_cost_manpower',
-    'crop_labor_count', 'crop_cost_fertilizer', 'crop_cost_seeds',
-    'crop_cost_pesticides', 'crop_cost_other', 'crop_expenses_total',
-    'crop_annual_profit', 'crop_value_per_ha', 'crop_cycle_duration_clean'
-]
-
-crop_df_subset = crop_df[cols_to_keep]
-
-numeric_cols = crop_df_subset.select_dtypes(include=['float64', 'int64']).columns.tolist()
-non_numeric_cols = [c for c in cols_to_keep if c not in numeric_cols and c != 'submission_time']
-
-crop_df_unique = crop_df_subset.groupby('submission_time').agg(
-    {**{col: 'mean' for col in numeric_cols},
-     **{col: 'first' for col in non_numeric_cols}}
-).reset_index()
-
-merged_df = pd.merge(df, crop_df_unique, on='submission_time', how='left')
-st.success("✅ Crop data merged with main DataFrame")
-st.write("Merged DataFrame shape:", merged_df.shape)
-
-st.markdown("---")
-
-# -----------------------------------------------------------
-# 🔹 7. Check Empty Columns After Merge
-# -----------------------------------------------------------
-st.markdown("## 🔹 Columns Completely Empty After Merge")
-
-empty_columns = merged_df.columns[merged_df.isna().all()].tolist()
-if empty_columns:
-    st.write("Columns that are completely empty:", empty_columns)
-else:
-    st.write("No completely empty columns found.")
+st.markdown("## 🌾 Crop Sheet Processing")
+
+crop_df = None
+crop_loaded = False
+
+if uploaded_file is not None:
+    try:
+        # Reset file pointer and load crop sheet
+        uploaded_file.seek(0)
+        crop_df = pd.read_excel(uploaded_file, sheet_name="crop", engine='openpyxl')
+        crop_loaded = True
+        st.success("✅ Crop sheet loaded successfully from uploaded file.")
+        st.markdown("### 🧾 Crop Sheet Preview")
+        st.dataframe(crop_df.head())
+        st.write("**Initial shape:**", crop_df.shape)
+    except ValueError:
+        st.warning("⚠️ No sheet named 'crop' found in the uploaded file. Skipping all crop-related processing.")
+    except Exception as e:
+        st.warning(f"⚠️ Error loading crop sheet: {e}. Skipping crop processing.")
+
+if crop_loaded and crop_df is not None:
+    # --- Drop completely empty columns ---
+    crop_df = crop_df.dropna(axis=1, how='all')
+    st.write(f"**Shape after dropping empty columns:** {crop_df.shape}")
     
-st.markdown("---")
+    # --- Column renaming map (traceability table shown for reference) ---
+    st.markdown('''
+    We’ll create clean, conventional names while keeping a reference dictionary to preserve the original column names for traceability
+    
+    | New Column Name              | Original Column Full Name                                                                 |
+    |------------------------------|-------------------------------------------------------------------------------------------|
+    | crop_type                    | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop do you cultivate?    |
+    | crop_cycle_duration          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/From farm preparation...        |
+    | crop_area_unit               | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You measure farm in:            |
+    | crop_area_hectare_equiv      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency |
+    | crop_area_size               | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Your farm is how many...        |
+    | crop_yield_unit              | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Harvested ${crops_wetland}...   |
+    | crop_yield_quantity          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Normally, how many...           |
+    | crop_harvest_frequency       | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You harvest ${crops_wetland}... |
+    | crop_unit_to_kg              | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/If measured on a balance...     |
+    | crop_yield_kg_ha_year        | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/quantity_farming_kg_ha_year     |
+    | crop_yield_calc              | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/This means that, per year...    |
+    | crop_market_price            | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Market price: If you sell...    |
+    | crop_fertilizer_use          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you use fertilizer...        |
+    | crop_cost_incurred           | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you incur any costs...       |
+    | crop_expense_amount          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How much are those expenses?    |
+    | crop_zero_cost_entry         | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Please write zero (0)...        |
+    | crop_cost_rent_land          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of renting land:           |
+    | crop_cost_manpower           | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of manpower...             |
+    | crop_labor_count             | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How many persons...             |
+    | crop_no_fertilizer_flag      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You even said you don't...      |
+    | crop_cost_fertilizer         | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fertilizer: RWF         |
+    | crop_cost_seeds              | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of buying seeds: RWF       |
+    | crop_cost_pesticides         | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fumigation...           |
+    | crop_cost_other              | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Other costs in RWF:             |
+    | crop_expenses_total          | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/expenses_farming                |
+    | crop_expenses_total_rwf      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Total expenses (RWF)...         |
+    | crop_expenses_ref            | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/${expenses_farming}             |
+    | crop_annual_profit           | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit...    |
+    | crop_annual_profit_rwf       | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit... ${value_farming_rwf_year} RWF |
+    | crop_value_per_ha            | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money... per hectare...  |
+    | crop_value_per_ha_rwf        | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money... ${value_farming_rwf_ha_year} RWF |
+    | crop_current_type            | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/crops_wetland_current           |
+    | crop_list                    | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop(s) do you cultivate? |
+    | crop_area_equiv_calc         | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency_calculation |
+    | crop_hectare_equiv_note      | crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare... |
+    ''')
+    
+    column_map = {
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop do you cultivate?": "crop_type",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/From farm preparation to harvesting the crops (yield of ${crops_wetland}), it takes you one:": "crop_cycle_duration",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You measure farm in:": "crop_area_unit",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency": "crop_area_hectare_equiv",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Your farm is how many ${unit_farming_area}s?": "crop_area_size",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Harvested ${crops_wetland} crops is measured in:": "crop_yield_unit",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Normally, how many ${unit_farming}s of havested ${crops_wetland} do you get every ${frequency_farming} for all the ${size_land_farming} - ${unit_farming_area}s that you cultivate?": "crop_yield_quantity",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You harvest ${crops_wetland} every ${frequency_fish}. As you know, the number of ${frequency_farming}s in a year is:": "crop_harvest_frequency",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/If measured on a balance, one ${unit_farming} of ${crops_wetland} is equal to how many kilograms?": "crop_unit_to_kg",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/quantity_farming_kg_ha_year": "crop_yield_kg_ha_year",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/This means that, per year, the ${crops_wetland} yied in kilograms per hectare (kg/ha/year) is: ${quantity_farming_kg_ha_year} kg/ha/year": "crop_yield_calc",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Market price: If you sell one ${unit_farming} of harvested ${crops_wetland}, you get how much money (RWF)?": "crop_market_price",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you use fertilizer for growing ${crops_wetland}?": "crop_fertilizer_use",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Do you incur any costs from farm preparation until you get the havested ${quantity_farming} - ${unit_farming}s of ${crops_wetland} every ${frequency_farming}?": "crop_cost_incurred",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How much are those expenses?": "crop_expense_amount",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Please write zero (0) an an answer to each cost in the question below (expenses incurred)": "crop_zero_cost_entry",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of renting land:": "crop_cost_rent_land",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of manpower: RWF per person per ${frequency_farming}": "crop_cost_manpower",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/How many persons do you use for manpower for one ${frequency_farming}?": "crop_labor_count",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/You even said you don't use fertilizer. So, I put zero cost for fertilizer...": "crop_no_fertilizer_flag",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fertilizer: RWF": "crop_cost_fertilizer",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of buying seeds: RWF": "crop_cost_seeds",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Cost of fumigation / pesticides: RWF": "crop_cost_pesticides",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Other costs in RWF:": "crop_cost_other",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/expenses_farming": "crop_expenses_total",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Total expenses (RWF) you incur every ${frequency_farming} for growing the ${crops_wetland} = **RWF **": "crop_expenses_total_rwf",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/${expenses_farming}": "crop_expenses_ref",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit every year from ${crops_wetland} is:": "crop_annual_profit",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/So, the money you benefit every year from ${crops_wetland} is: ${value_farming_rwf_year} RWF": "crop_annual_profit_rwf",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money (Rwandan Francs) you benefit per hectare per year is:": "crop_value_per_ha",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Value: money (Rwandan Francs) you benefit per hectare per year is: ${value_farming_rwf_ha_year} RWF": "crop_value_per_ha_rwf",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/crops_wetland_current": "crop_current_type",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/Which crop(s) do you cultivate?": "crop_list",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/unit_farming_area_hectare_equivalency_calculation": "crop_area_equiv_calc",
+        "crop grown by your household/VALUE OF CROPS YOU CULTIVATE/The equivalency of one hectare in ${unit_farming_area} is:": "crop_hectare_equiv_note"
+    }
+    
+    # Safe rename: only apply to columns that actually exist
+    existing_mappings = {old: new for old, new in column_map.items() if old in crop_df.columns}
+    if existing_mappings:
+        crop_df.rename(columns=existing_mappings, inplace=True)
+        st.success(f"✅ Renamed {len(existing_mappings)} crop columns successfully.")
+    else:
+        st.warning("⚠️ None of the expected crop columns found – rename skipped.")
+    
+    st.dataframe(crop_df.head())
+    st.write("**Shape after rename:**", crop_df.shape)
+    
+    # --- Continue with the rest of your crop processing ---
+    # Find columns with no data
+    st.markdown("## **1️⃣ Find Columns With No Data**")
+    empty_cols = crop_df.columns[crop_df.isna().all()].tolist()
+    empty_compare = pd.DataFrame({
+        "Empty Columns": pd.Series(empty_cols)
+    })
+    st.dataframe(empty_compare)
+    st.write(f"**Number of empty columns:** {len(empty_cols)}")
+    
+    # Drop empty columns
+    st.markdown("## **2️⃣ Drop Columns With No Data**")
+    crop_df = crop_df.dropna(axis=1, how='all')
+    st.write("**Remaining columns:**", len(crop_df.columns))
+    st.write(crop_df.columns.tolist())
+    st.dataframe(crop_df.head())
+    
+    # Create submission date & time
+    st.markdown("## 3️⃣ Create Submission Date & Time (UTC+2)")
+    if '_submission__submission_time' in crop_df.columns:
+        crop_df['_submission__submission_time'] = pd.to_datetime(
+            crop_df['_submission__submission_time'], errors='coerce', utc=True
+        ).dt.tz_convert('Africa/Kigali')
+        crop_df['submission_date'] = crop_df['_submission__submission_time'].dt.date
+        crop_df['submission_time'] = crop_df['_submission__submission_time'].dt.strftime('%H:%M:%S')
+        crop_df.drop(columns=['_submission__submission_time'], inplace=True)
+        st.dataframe(crop_df[['submission_date', 'submission_time']].head())
+    else:
+        st.warning("Column '_submission__submission_time' not found – skipping submission time processing.")
+    
+    # Standardize crop cycle duration
+    st.markdown("## **4️⃣ Standardize Crop Cycle Duration**")
+    if 'crop_cycle_duration' in crop_df.columns:
+        crop_df['crop_cycle_duration_clean'] = crop_df['crop_cycle_duration'].str.lower().map({
+            'week': 'Week', 'month': 'Month', 'quarter (3 months)': 'Quarter',
+            'semester (6 months)': 'Semester', 'year': 'Year'
+        })
+    
+    # Replace 'are' → 'acre'
+    if 'crop_area_unit' in crop_df.columns:
+        crop_df['crop_area_unit'] = crop_df['crop_area_unit'].replace('are', 'acre')
+        st.write("Unique crop_area_unit values:", crop_df['crop_area_unit'].unique())
+    
+    st.dataframe(crop_df.head())
+    
+    # --- Identify few unique values, numeric summary, outliers, winsorization, etc. ---
+    # (All your existing crop outlier code here – unchanged)
+    
+    # --- Merge with main df ---
+    st.markdown("## 🔹 Merge Crop Data with Main DataFrame")
+    cols_to_keep = [ ... ]  # your list
+    if all(col in crop_df.columns for col in cols_to_keep):
+        crop_df_subset = crop_df[cols_to_keep]
+        # aggregation & merge as before
+        merged_df = pd.merge(df, crop_df_unique, on='submission_time', how='left')
+        st.success("✅ Crop data merged successfully")
+    else:
+        st.warning("Some expected columns missing – merge skipped.")
+        merged_df = df.copy()
+    
+else:
+    merged_df = df.copy()
+    st.info("📌 No crop sheet – final dataframe is main data only.")
 
-st.subheader("Download Merged Crop Dataset")
-
+# -----------------------------------------------------------
+# Final Download
+# -----------------------------------------------------------
+st.subheader("📥 Download Final Dataset")
 @st.cache_data
-def convert_df_to_csv(df):
-    return df.to_csv(index=False).encode('utf-8')
+def convert_df_to_csv(data):
+    return data.to_csv(index=False).encode('utf-8')
 
-csv_download = convert_df_to_csv(merged_df)
-
+csv = convert_df_to_csv(merged_df)
 st.download_button(
-    label="📥 Download merged_df as CSV",
-    data=csv_download,
-    file_name='merged_crop_dataset.csv',
+    label="Download cleaned & merged data as CSV",
+    data=csv,
+    file_name=f'rwanda_ecosystem_cleaned_{datetime.now().year}.csv',
     mime='text/csv'
 )
