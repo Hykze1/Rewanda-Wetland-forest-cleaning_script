@@ -1648,7 +1648,7 @@ if crop_loaded and crop_df is not None:
 else:
     merged_df = df.copy()
     st.info("📌 No crop sheet – final dataframe is main data only.")
-
+st.write("**Final merged dataframe shape:**", merged_df.shape)
 # -----------------------------------------------------------
 # Final Download
 # -----------------------------------------------------------
