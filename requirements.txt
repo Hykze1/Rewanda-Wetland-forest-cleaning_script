@@ -4,6 +4,6 @@ pytz
 matplotlib
 seaborn
 numpy
-streamlit==1.19.0
-altair==4.2.2
+streamlit>=1.31.0
+altair==6.0.0
 
